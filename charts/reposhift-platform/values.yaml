@@ -29,7 +29,18 @@ github:
   clientSecret: ""
   redirectURL: ""
 
+serviceAccount:
+  annotations: {}
+
 ingress:
   enabled: false
+  className: ""
+  annotations: {}
+  hosts: []
+  #  - host: reposhift.example.com
+  tls: []
+  #  - secretName: reposhift-tls
+  #    hosts:
+  #      - reposhift.example.com
 
 env: {}

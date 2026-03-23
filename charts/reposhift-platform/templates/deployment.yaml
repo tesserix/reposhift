@@ -14,6 +14,7 @@ spec:
       labels:
         {{- include "reposhift-platform.selectorLabels" . | nindent 8 }}
     spec:
+      serviceAccountName: {{ include "reposhift-platform.fullname" . }}
       containers:
         - name: platform
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

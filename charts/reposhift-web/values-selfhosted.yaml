@@ -1,0 +1,7 @@
+image:
+  pullPolicy: IfNotPresent
+
+platformApiUrl: "http://reposhift-platform:8090"
+
+ingress:
+  enabled: false

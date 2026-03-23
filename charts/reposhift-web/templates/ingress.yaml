@@ -1,0 +1,37 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "reposhift-web.fullname" . }}
+  labels:
+    {{- include "reposhift-web.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/proxy-set-headers: "Upgrade=$http_upgrade Connection=upgrade"
+    nginx.ingress.kubernetes.io/connection-proxy-header: "keep-alive, Upgrade"
+    nginx.org/websocket-services: {{ include "reposhift-web.fullname" . }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ include "reposhift-web.fullname" . }}-tls
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "reposhift-web.fullname" . }}
+                port:
+                  number: {{ .Values.port }}
+{{- end }}
