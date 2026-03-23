@@ -87,8 +87,6 @@ spec:
               memory: "128Mi"
               cpu: "200m"
           securityContext:
-            runAsNonRoot: true
-            readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
       volumes:
         - name: migrations
