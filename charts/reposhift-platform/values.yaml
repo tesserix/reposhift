@@ -1,0 +1,35 @@
+image:
+  repository: ghcr.io/tesserix/reposhift-platform
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+mode: saas
+
+port: 8090
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+postgresql:
+  host: "10.117.240.3"
+  port: 5432
+  database: reposhift_db
+  user: reposhift_user
+  sslmode: require
+
+github:
+  clientID: ""
+  clientSecret: ""
+  redirectURL: ""
+
+ingress:
+  enabled: false
+
+env: {}

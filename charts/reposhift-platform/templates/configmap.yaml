@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "reposhift-platform.fullname" . }}
+  labels:
+    {{- include "reposhift-platform.labels" . | nindent 4 }}
+data:
+  REPOSHIFT_MODE: {{ .Values.mode | quote }}
+  PORT: {{ .Values.port | quote }}
+  POSTGRES_HOST: {{ .Values.postgresql.host | quote }}
+  POSTGRES_PORT: {{ .Values.postgresql.port | quote }}
+  POSTGRES_DATABASE: {{ .Values.postgresql.database | quote }}
+  POSTGRES_USER: {{ .Values.postgresql.user | quote }}
+  POSTGRES_SSLMODE: {{ .Values.postgresql.sslmode | quote }}
+  GITHUB_CLIENT_ID: {{ .Values.github.clientID | quote }}
+  GITHUB_REDIRECT_URL: {{ .Values.github.redirectURL | quote }}
+  {{- range $key, $value := .Values.env }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

@@ -1,0 +1,10 @@
+mode: selfhosted
+
+replicaCount: 1
+
+postgresql:
+  host: "localhost"
+  port: 5432
+  database: reposhift_db
+  user: reposhift_user
+  sslmode: disable

@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+body {
+  background-color: #09090b;
+  color: #fafafa;
+}
+
+.input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid #27272a;
+  background-color: #18181b;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: #fafafa;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: #3f3f46;
+}
+
+.input::placeholder {
+  color: #52525b;
+}
