@@ -22,7 +22,7 @@ spec:
         - name: postgresql.host
           value: "postgresql.postgresql-global.svc.cluster.local"
         - name: postgresql.sslmode
-          value: disable
+          value: require
         - name: istio.enabled
           value: "true"
         - name: istio.host
