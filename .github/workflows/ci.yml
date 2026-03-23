@@ -52,7 +52,7 @@ jobs:
       - name: Build and push operator
         run: |
           SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          docker build -t ${{ env.REGISTRY }}/tesserix/reposhift:${SHA} -t ${{ env.REGISTRY }}/tesserix/reposhift:latest -f Dockerfile .
+          docker build --no-cache -t ${{ env.REGISTRY }}/tesserix/reposhift:${SHA} -t ${{ env.REGISTRY }}/tesserix/reposhift:latest -f Dockerfile .
           docker push ${{ env.REGISTRY }}/tesserix/reposhift:${SHA}
           docker push ${{ env.REGISTRY }}/tesserix/reposhift:latest
 
@@ -71,7 +71,7 @@ jobs:
       - name: Build and push platform
         run: |
           SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          docker build -t ${{ env.REGISTRY }}/tesserix/reposhift-platform:${SHA} -t ${{ env.REGISTRY }}/tesserix/reposhift-platform:latest -f Dockerfile.platform .
+          docker build --no-cache -t ${{ env.REGISTRY }}/tesserix/reposhift-platform:${SHA} -t ${{ env.REGISTRY }}/tesserix/reposhift-platform:latest -f Dockerfile.platform .
           docker push ${{ env.REGISTRY }}/tesserix/reposhift-platform:${SHA}
           docker push ${{ env.REGISTRY }}/tesserix/reposhift-platform:latest
 
@@ -89,6 +89,6 @@ jobs:
       - name: Build and push web
         run: |
           SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          docker build -t ${{ env.REGISTRY }}/tesserix/reposhift-web:${SHA} -t ${{ env.REGISTRY }}/tesserix/reposhift-web:latest -f web/Dockerfile web/
+          docker build --no-cache -t ${{ env.REGISTRY }}/tesserix/reposhift-web:${SHA} -t ${{ env.REGISTRY }}/tesserix/reposhift-web:latest -f web/Dockerfile web/
           docker push ${{ env.REGISTRY }}/tesserix/reposhift-web:${SHA}
           docker push ${{ env.REGISTRY }}/tesserix/reposhift-web:latest
