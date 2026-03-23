@@ -204,7 +204,7 @@ export default function NewMigrationPage() {
             <div className="mb-4 flex gap-2">
               <button
                 type="button"
-                onClick={() => setBranchFilterMode(branchFilterMode === "" ? "" : "")}
+                onClick={() => setBranchFilterMode("")}
                 className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
                   branchFilterMode === ""
                     ? "border-emerald-700 bg-emerald-950 text-emerald-400"
