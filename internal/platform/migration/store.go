@@ -3,6 +3,7 @@ package migration
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -70,7 +71,7 @@ func (s *MigrationStore) GetByID(ctx context.Context, tenantID, id string) (*Ten
 		&m.DisplayName, &m.Config, &m.Status, &m.CreatedAt, &m.UpdatedAt,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("migration %s not found for tenant %s", id, tenantID)
 		}
 		return nil, fmt.Errorf("get tenant migration: %w", err)

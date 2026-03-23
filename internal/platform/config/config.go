@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
-	"strconv"
+	"strings"
 )
 
 const (
@@ -80,6 +80,9 @@ func (c *PlatformConfig) Validate() error {
 	if c.JWTSecret == "" {
 		return fmt.Errorf("JWT_SECRET is required")
 	}
+	if len(c.JWTSecret) < 32 {
+		return fmt.Errorf("JWT_SECRET must be at least 32 characters long")
+	}
 	if c.IsSaaS() {
 		if c.EncryptionKey == "" {
 			return fmt.Errorf("ENCRYPTION_KEY is required in SaaS mode")
@@ -89,6 +92,9 @@ func (c *PlatformConfig) Validate() error {
 		}
 		if c.GitHub.ClientID == "" || c.GitHub.ClientSecret == "" {
 			return fmt.Errorf("GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET are required in SaaS mode")
+		}
+		if c.GitHub.RedirectURL == "" {
+			return fmt.Errorf("GITHUB_REDIRECT_URL is required in SaaS mode")
 		}
 	}
 	if c.IsSelfHosted() && c.AdminToken == "" && c.GitHub.ClientID == "" {
@@ -138,22 +144,10 @@ func splitComma(s string) []string {
 	start := 0
 	for i := 0; i < len(s); i++ {
 		if s[i] == ',' {
-			parts = append(parts, s[start:i])
+			parts = append(parts, strings.TrimSpace(s[start:i]))
 			start = i + 1
 		}
 	}
-	parts = append(parts, s[start:])
+	parts = append(parts, strings.TrimSpace(s[start:]))
 	return parts
-}
-
-func envAsInt(key string, fallback int) int {
-	v := os.Getenv(key)
-	if v == "" {
-		return fallback
-	}
-	n, err := strconv.Atoi(v)
-	if err != nil {
-		return fallback
-	}
-	return n
 }

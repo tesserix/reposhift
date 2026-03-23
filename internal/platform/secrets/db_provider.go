@@ -84,7 +84,7 @@ func (p *DBProvider) decrypt(blob []byte) (map[string]string, error) {
 func (p *DBProvider) Store(ctx context.Context, tenantID, name, secretType string, data map[string]string) error {
 	encrypted, err := p.encrypt(data)
 	if err != nil {
-		return err
+		return fmt.Errorf("secrets: store: %w", err)
 	}
 
 	query := `
@@ -129,7 +129,7 @@ func (p *DBProvider) Delete(ctx context.Context, tenantID, name string) error {
 // decrypting their data.
 func (p *DBProvider) List(ctx context.Context, tenantID string) ([]SecretMetadata, error) {
 	query := `
-		SELECT id, tenant_id, name, secret_type, created_at, updated_at
+		SELECT id, tenant_id, name, secret_type, metadata, created_at, updated_at
 		FROM tenant_secrets
 		WHERE tenant_id = $1
 		ORDER BY name
@@ -145,7 +145,7 @@ func (p *DBProvider) List(ctx context.Context, tenantID string) ([]SecretMetadat
 	for rows.Next() {
 		var m SecretMetadata
 		var createdAt, updatedAt time.Time
-		if err := rows.Scan(&m.ID, &m.TenantID, &m.Name, &m.SecretType, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.TenantID, &m.Name, &m.SecretType, &m.Metadata, &createdAt, &updatedAt); err != nil {
 			return nil, fmt.Errorf("secrets: list scan: %w", err)
 		}
 		m.CreatedAt = createdAt

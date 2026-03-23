@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -239,12 +239,12 @@ func (o *Orchestrator) ensureK8sSecret(ctx context.Context, namespace, name stri
 
 	_, err := o.k8s.CoreV1().Secrets(namespace).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
-		// If already exists, update it.
-		if strings.Contains(err.Error(), "already exists") {
-			_, err = o.k8s.CoreV1().Secrets(namespace).Update(ctx, secret, metav1.UpdateOptions{})
-		}
-		if err != nil {
+		if !apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("ensure k8s secret %s/%s: %w", namespace, name, err)
+		}
+		// Already exists — update it.
+		if _, updateErr := o.k8s.CoreV1().Secrets(namespace).Update(ctx, secret, metav1.UpdateOptions{}); updateErr != nil {
+			return fmt.Errorf("ensure k8s secret %s/%s: %w", namespace, name, updateErr)
 		}
 	}
 	return nil

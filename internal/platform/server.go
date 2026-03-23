@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -18,6 +19,20 @@ import (
 	"github.com/tesserix/reposhift/internal/platform/secrets"
 	"github.com/tesserix/reposhift/internal/platform/tenant"
 )
+
+// validSecretTypes defines the allowed secret type values.
+var validSecretTypes = map[string]struct{}{
+	"ado_pat":      {},
+	"github_token": {},
+	"github_app":   {},
+	"azure_sp":     {},
+}
+
+// slugPattern validates tenant slug format: lowercase alphanumeric and hyphens, 2-63 chars.
+var slugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$`)
+
+// oauthStateCookieName is the cookie used to store the OAuth CSRF state.
+const oauthStateCookieName = "reposhift_oauth_state"
 
 // PlatformServer wraps all platform dependencies and exposes the HTTP API.
 type PlatformServer struct {
@@ -68,9 +83,16 @@ func (s *PlatformServer) SetupRouter() *gin.Engine {
 		authGroup.POST("/refresh", s.handleRefreshToken)
 	}
 
-	// Protected routes (JWT middleware).
+	// Protected routes: choose auth middleware based on deployment mode.
 	protected := v1.Group("")
-	protected.Use(auth.JWTAuthMiddleware(s.cfg.JWTSecret))
+	if s.cfg.IsSelfHosted() && s.cfg.AdminToken != "" && s.githubOAuth == nil {
+		// Self-hosted mode with admin token (no GitHub OAuth configured).
+		protected.Use(auth.AdminTokenMiddleware(s.cfg.AdminToken))
+	} else {
+		// SaaS mode, or self-hosted with GitHub OAuth configured.
+		protected.Use(auth.JWTAuthMiddleware(s.cfg.JWTSecret))
+		protected.Use(s.tenantMembershipMiddleware())
+	}
 	{
 		// Tenant routes.
 		protected.GET("/tenant", s.getCurrentTenant)
@@ -97,6 +119,42 @@ func (s *PlatformServer) SetupRouter() *gin.Engine {
 	}
 
 	return r
+}
+
+// tenantMembershipMiddleware validates that the JWT-authenticated user is actually
+// a member of the tenant specified in their JWT claims. Must be used after JWTAuthMiddleware.
+func (s *PlatformServer) tenantMembershipMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := auth.GetUserID(c)
+		tenantID := auth.GetTenantID(c)
+
+		if userID == "" || tenantID == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing user or tenant context"})
+			return
+		}
+
+		memberships, err := s.tenantStore.GetMembership(c.Request.Context(), userID)
+		if err != nil {
+			slog.Error("failed to verify tenant membership", "userId", userID, "tenantId", tenantID, "error", err)
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "failed to verify tenant membership"})
+			return
+		}
+
+		found := false
+		for _, m := range memberships {
+			if m.TenantID == tenantID {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "user is not a member of the requested tenant"})
+			return
+		}
+
+		c.Next()
+	}
 }
 
 // corsMiddleware returns a Gin middleware that handles CORS headers.
@@ -150,7 +208,8 @@ func (s *PlatformServer) handleGitHubAuth(c *gin.Context) {
 	}
 
 	var req githubAuthRequest
-	_ = c.ShouldBindJSON(&req) // optional body
+	// Body is optional; ignore bind errors for this endpoint.
+	_ = c.ShouldBindJSON(&req)
 
 	stateBytes := make([]byte, 16)
 	if _, err := rand.Read(stateBytes); err != nil {
@@ -159,6 +218,17 @@ func (s *PlatformServer) handleGitHubAuth(c *gin.Context) {
 		return
 	}
 	state := hex.EncodeToString(stateBytes)
+
+	// Store the state in a secure HttpOnly cookie for CSRF validation on callback.
+	c.SetCookie(
+		oauthStateCookieName,
+		state,
+		600, // 10 minutes
+		"/",
+		"",    // domain (auto)
+		true,  // secure
+		true,  // httpOnly
+	)
 
 	authURL := s.githubOAuth.GetAuthURL(state)
 	c.JSON(http.StatusOK, gin.H{
@@ -184,6 +254,20 @@ func (s *PlatformServer) handleGitHubCallback(c *gin.Context) {
 		return
 	}
 
+	// Validate OAuth state against the cookie to prevent CSRF attacks.
+	storedState, err := c.Cookie(oauthStateCookieName)
+	if err != nil || storedState == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing OAuth state cookie — possible CSRF or expired session"})
+		return
+	}
+	if storedState != req.State {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "OAuth state mismatch — possible CSRF attack"})
+		return
+	}
+
+	// Clear the state cookie after validation.
+	c.SetCookie(oauthStateCookieName, "", -1, "/", "", true, true)
+
 	// Exchange authorization code for an OAuth token.
 	oauthToken, err := s.githubOAuth.Exchange(c.Request.Context(), req.Code)
 	if err != nil {
@@ -200,10 +284,10 @@ func (s *PlatformServer) handleGitHubCallback(c *gin.Context) {
 		return
 	}
 
-	// Upsert the user in the database.
-	userID := uuid.New().String()
+	// Upsert the user in the database. The ID is only used for new inserts;
+	// on conflict (existing github_id), UpsertUser returns the existing row's ID.
 	user, err := s.tenantStore.UpsertUser(c.Request.Context(), &tenant.User{
-		ID:          userID,
+		ID:          uuid.New().String(),
 		GitHubID:    ghUser.ID,
 		GitHubLogin: ghUser.Login,
 		GitHubEmail: ghUser.Email,
@@ -338,7 +422,13 @@ func (s *PlatformServer) updateTenant(c *gin.Context) {
 
 	var req updateTenantRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
+		return
+	}
+
+	// Validate slug format if provided.
+	if req.Slug != "" && !slugPattern.MatchString(req.Slug) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid slug format: must be 2-63 lowercase alphanumeric characters or hyphens, starting and ending with alphanumeric"})
 		return
 	}
 
@@ -406,7 +496,13 @@ func (s *PlatformServer) createSecret(c *gin.Context) {
 
 	var req createSecretRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body: name, secretType, and data are required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
+		return
+	}
+
+	// Validate secret type.
+	if _, ok := validSecretTypes[req.SecretType]; !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid secretType %q: must be one of ado_pat, github_token, github_app, azure_sp", req.SecretType)})
 		return
 	}
 
@@ -466,7 +562,7 @@ func (s *PlatformServer) createMigration(c *gin.Context) {
 
 	var req migration.CreateMigrationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
 		return
 	}
 
@@ -565,7 +661,9 @@ func (s *PlatformServer) getDashboardStats(c *gin.Context) {
 	tenantID := auth.GetTenantID(c)
 	ctx := c.Request.Context()
 
-	// Fetch all migrations for this tenant (use a large limit to get everything).
+	// TODO: Replace this with a dedicated CountByStatus method that uses a
+	// GROUP BY query (e.g. SELECT status, COUNT(*) FROM migrations WHERE tenant_id = $1 GROUP BY status)
+	// to avoid loading all migration rows into memory.
 	migrations, total, err := s.migrationStore.List(ctx, tenantID, 10000, 0)
 	if err != nil {
 		slog.Error("failed to get dashboard stats", "tenantId", tenantID, "error", err)

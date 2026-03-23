@@ -6,6 +6,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -89,6 +90,9 @@ func (p *K8sProvider) Store(ctx context.Context, tenantID, name, secretType stri
 		}
 		return nil
 	}
+	if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("secrets: k8s get for upsert: %w", err)
+	}
 
 	// Create new secret.
 	_, err = p.clientset.CoreV1().Secrets(p.namespace).Create(ctx, secret, metav1.CreateOptions{})
@@ -99,12 +103,17 @@ func (p *K8sProvider) Store(ctx context.Context, tenantID, name, secretType stri
 }
 
 // Get retrieves a Kubernetes Secret and returns its data.
-func (p *K8sProvider) Get(ctx context.Context, _, name string) (map[string]string, error) {
+func (p *K8sProvider) Get(ctx context.Context, tenantID, name string) (map[string]string, error) {
 	secretName := k8sSecretName(name)
 
 	secret, err := p.clientset.CoreV1().Secrets(p.namespace).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("secrets: k8s get: %w", err)
+	}
+
+	// Verify the secret belongs to the requested tenant.
+	if secret.Labels["reposhift.io/tenant-id"] != tenantID {
+		return nil, fmt.Errorf("secrets: k8s get: secret %q does not belong to tenant %q", name, tenantID)
 	}
 
 	// Convert []byte values to strings.
@@ -116,10 +125,19 @@ func (p *K8sProvider) Get(ctx context.Context, _, name string) (map[string]strin
 }
 
 // Delete removes a Kubernetes Secret.
-func (p *K8sProvider) Delete(ctx context.Context, _, name string) error {
+func (p *K8sProvider) Delete(ctx context.Context, tenantID, name string) error {
 	secretName := k8sSecretName(name)
 
-	err := p.clientset.CoreV1().Secrets(p.namespace).Delete(ctx, secretName, metav1.DeleteOptions{})
+	// Verify the secret belongs to the requested tenant before deleting.
+	secret, err := p.clientset.CoreV1().Secrets(p.namespace).Get(ctx, secretName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("secrets: k8s delete: %w", err)
+	}
+	if secret.Labels["reposhift.io/tenant-id"] != tenantID {
+		return fmt.Errorf("secrets: k8s delete: secret %q does not belong to tenant %q", name, tenantID)
+	}
+
+	err = p.clientset.CoreV1().Secrets(p.namespace).Delete(ctx, secretName, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("secrets: k8s delete: %w", err)
 	}
@@ -139,13 +157,22 @@ func (p *K8sProvider) List(ctx context.Context, tenantID string) ([]SecretMetada
 
 	result := make([]SecretMetadata, 0, len(secrets.Items))
 	for _, s := range secrets.Items {
+		// Skip secrets missing required labels or annotations.
+		secretName, hasName := s.Annotations["reposhift.io/secret-name"]
+		secretType, hasType := s.Labels["reposhift.io/secret-type"]
+		tid, hasTenant := s.Labels["reposhift.io/tenant-id"]
+		if !hasName || !hasType || !hasTenant {
+			continue
+		}
+
 		m := SecretMetadata{
 			ID:         string(s.UID),
-			TenantID:   s.Labels["reposhift.io/tenant-id"],
-			Name:       s.Annotations["reposhift.io/secret-name"],
-			SecretType: s.Labels["reposhift.io/secret-type"],
-			CreatedAt:  s.CreationTimestamp.Time,
-			UpdatedAt:  s.CreationTimestamp.Time,
+			TenantID:   tid,
+			Name:       secretName,
+			SecretType: secretType,
+			// K8s secrets don't track update time; use creation timestamp for both.
+			CreatedAt: s.CreationTimestamp.Time,
+			UpdatedAt: s.CreationTimestamp.Time,
 		}
 		result = append(result, m)
 	}
