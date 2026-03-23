@@ -12,6 +12,13 @@ spec:
     helm:
       valueFiles:
         - values.yaml
+      parameters:
+        - name: platformApiUrl
+          value: "http://reposhift-platform:8090"
+        - name: istio.enabled
+          value: "true"
+        - name: istio.host
+          value: repomigrator.tesserix.app
   destination:
     server: https://kubernetes.default.svc
     namespace: git-migrator

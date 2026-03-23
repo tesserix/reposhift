@@ -11,7 +11,7 @@ spec:
     targetRevision: main
     helm:
       valueFiles:
-        - values-selfhosted.yaml
+        - values.yaml
       parameters:
         - name: mode
           value: selfhosted
@@ -23,6 +23,12 @@ spec:
           value: "10.117.240.3"
         - name: postgresql.sslmode
           value: require
+        - name: istio.enabled
+          value: "true"
+        - name: istio.host
+          value: repomigrator.tesserix.app
+        - name: cors.allowedOrigins
+          value: "https://repomigrator.tesserix.app,http://localhost:3005"
   destination:
     server: https://kubernetes.default.svc
     namespace: git-migrator

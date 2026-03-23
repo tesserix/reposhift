@@ -64,6 +64,6 @@ ingress:
 istio:
   enabled: false
   gateway: istio-system/default-gateway
-  host: reposhift.example.com
+  host: repomigrator.tesserix.app
 
 env: {}
