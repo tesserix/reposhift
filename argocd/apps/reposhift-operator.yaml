@@ -12,6 +12,17 @@ spec:
     helm:
       valueFiles:
         - values.yaml
+      parameters:
+        - name: persistence.storageClassName
+          value: standard-rwo
+        - name: persistence.size
+          value: "10Gi"
+        - name: image.repository
+          value: ghcr.io/tesserix/reposhift
+        - name: imagePullSecrets[0].name
+          value: ghcr-secret
+        - name: postgresql.enabled
+          value: "false"
   destination:
     server: https://kubernetes.default.svc
     namespace: git-migrator

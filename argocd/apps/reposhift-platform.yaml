@@ -11,7 +11,18 @@ spec:
     targetRevision: main
     helm:
       valueFiles:
-        - values.yaml
+        - values-selfhosted.yaml
+      parameters:
+        - name: mode
+          value: selfhosted
+        - name: adminToken
+          value: reposhift-admin-2026
+        - name: postgresPassword
+          value: changeme
+        - name: postgresql.host
+          value: "10.117.240.3"
+        - name: postgresql.sslmode
+          value: require
   destination:
     server: https://kubernetes.default.svc
     namespace: git-migrator
