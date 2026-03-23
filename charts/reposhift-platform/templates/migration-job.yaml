@@ -19,7 +19,7 @@ spec:
         app.kubernetes.io/component: migrations
     spec:
       restartPolicy: OnFailure
-      serviceAccountName: {{ include "reposhift-platform.fullname" . }}
+      automountServiceAccountToken: false
       initContainers:
         - name: wait-for-postgres
           image: postgres:16-alpine
