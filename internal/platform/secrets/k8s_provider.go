@@ -18,7 +18,7 @@ const (
 	secretPrefix   = "reposhift-secret-"
 )
 
-// K8sProvider implements SecretsProvider for self-hosted mode, storing
+// K8sProvider implements SecretsProvider for open-source mode, storing
 // secrets as native Kubernetes Secret objects.
 type K8sProvider struct {
 	namespace string
@@ -58,7 +58,7 @@ func k8sSecretName(name string) string {
 }
 
 // Store creates or updates a Kubernetes Secret with the provided data.
-func (p *K8sProvider) Store(ctx context.Context, tenantID, name, secretType string, data map[string]string) error {
+func (p *K8sProvider) Store(ctx context.Context, name, secretType string, data map[string]string) error {
 	secretName := k8sSecretName(name)
 
 	secret := &corev1.Secret{
@@ -67,7 +67,6 @@ func (p *K8sProvider) Store(ctx context.Context, tenantID, name, secretType stri
 			Namespace: p.namespace,
 			Labels: map[string]string{
 				managedByLabel:              managedByValue,
-				"reposhift.io/tenant-id":   tenantID,
 				"reposhift.io/secret-type": secretType,
 			},
 			Annotations: map[string]string{
@@ -103,17 +102,12 @@ func (p *K8sProvider) Store(ctx context.Context, tenantID, name, secretType stri
 }
 
 // Get retrieves a Kubernetes Secret and returns its data.
-func (p *K8sProvider) Get(ctx context.Context, tenantID, name string) (map[string]string, error) {
+func (p *K8sProvider) Get(ctx context.Context, name string) (map[string]string, error) {
 	secretName := k8sSecretName(name)
 
 	secret, err := p.clientset.CoreV1().Secrets(p.namespace).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("secrets: k8s get: %w", err)
-	}
-
-	// Verify the secret belongs to the requested tenant.
-	if secret.Labels["reposhift.io/tenant-id"] != tenantID {
-		return nil, fmt.Errorf("secrets: k8s get: secret %q does not belong to tenant %q", name, tenantID)
 	}
 
 	// Convert []byte values to strings.
@@ -125,19 +119,10 @@ func (p *K8sProvider) Get(ctx context.Context, tenantID, name string) (map[strin
 }
 
 // Delete removes a Kubernetes Secret.
-func (p *K8sProvider) Delete(ctx context.Context, tenantID, name string) error {
+func (p *K8sProvider) Delete(ctx context.Context, name string) error {
 	secretName := k8sSecretName(name)
 
-	// Verify the secret belongs to the requested tenant before deleting.
-	secret, err := p.clientset.CoreV1().Secrets(p.namespace).Get(ctx, secretName, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("secrets: k8s delete: %w", err)
-	}
-	if secret.Labels["reposhift.io/tenant-id"] != tenantID {
-		return fmt.Errorf("secrets: k8s delete: secret %q does not belong to tenant %q", name, tenantID)
-	}
-
-	err = p.clientset.CoreV1().Secrets(p.namespace).Delete(ctx, secretName, metav1.DeleteOptions{})
+	err := p.clientset.CoreV1().Secrets(p.namespace).Delete(ctx, secretName, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("secrets: k8s delete: %w", err)
 	}
@@ -145,8 +130,8 @@ func (p *K8sProvider) Delete(ctx context.Context, tenantID, name string) error {
 }
 
 // List returns metadata for all reposhift-managed Kubernetes Secrets.
-func (p *K8sProvider) List(ctx context.Context, tenantID string) ([]SecretMetadata, error) {
-	labelSelector := fmt.Sprintf("%s=%s,reposhift.io/tenant-id=%s", managedByLabel, managedByValue, tenantID)
+func (p *K8sProvider) List(ctx context.Context) ([]SecretMetadata, error) {
+	labelSelector := fmt.Sprintf("%s=%s", managedByLabel, managedByValue)
 
 	secrets, err := p.clientset.CoreV1().Secrets(p.namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
@@ -160,14 +145,12 @@ func (p *K8sProvider) List(ctx context.Context, tenantID string) ([]SecretMetada
 		// Skip secrets missing required labels or annotations.
 		secretName, hasName := s.Annotations["reposhift.io/secret-name"]
 		secretType, hasType := s.Labels["reposhift.io/secret-type"]
-		tid, hasTenant := s.Labels["reposhift.io/tenant-id"]
-		if !hasName || !hasType || !hasTenant {
+		if !hasName || !hasType {
 			continue
 		}
 
 		m := SecretMetadata{
 			ID:         string(s.UID),
-			TenantID:   tid,
 			Name:       secretName,
 			SecretType: secretType,
 			// K8s secrets don't track update time; use creation timestamp for both.
@@ -182,15 +165,12 @@ func (p *K8sProvider) List(ctx context.Context, tenantID string) ([]SecretMetada
 
 // ResolveK8sSecretName returns the Kubernetes Secret name and namespace
 // directly since secrets are already stored natively in K8s.
-func (p *K8sProvider) ResolveK8sSecretName(_ context.Context, _, name string) (string, string, error) {
+func (p *K8sProvider) ResolveK8sSecretName(_ context.Context, name string) (string, string, error) {
 	return k8sSecretName(name), p.namespace, nil
 }
 
 // compile-time interface check
-var (
-	_ SecretsProvider = (*K8sProvider)(nil)
-	_ SecretsProvider = (*DBProvider)(nil)
-)
+var _ SecretsProvider = (*K8sProvider)(nil)
 
 // timestampOrDefault returns the timestamp or a zero time — helper for
 // cases where K8s objects may not have a meaningful update timestamp.

@@ -11,10 +11,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// TenantMigration represents a migration record owned by a tenant.
-type TenantMigration struct {
+// Migration represents a migration record.
+type Migration struct {
 	ID          string          `json:"id"`
-	TenantID    string          `json:"tenantId"`
 	CRName      string          `json:"crName"`
 	CRNamespace string          `json:"crNamespace"`
 	CRKind      string          `json:"crKind"`
@@ -25,7 +24,7 @@ type TenantMigration struct {
 	UpdatedAt   time.Time       `json:"updatedAt"`
 }
 
-// MigrationStore provides tenant-scoped CRUD operations for migrations.
+// MigrationStore provides CRUD operations for migrations.
 type MigrationStore struct {
 	pool *pgxpool.Pool
 }
@@ -35,121 +34,120 @@ func NewMigrationStore(pool *pgxpool.Pool) *MigrationStore {
 	return &MigrationStore{pool: pool}
 }
 
-// Create inserts a new tenant migration record.
-func (s *MigrationStore) Create(ctx context.Context, m *TenantMigration) error {
+// Create inserts a new migration record.
+func (s *MigrationStore) Create(ctx context.Context, m *Migration) error {
 	query := `
-		INSERT INTO tenant_migrations (
-			id, tenant_id, cr_name, cr_namespace, cr_kind,
+		INSERT INTO migrations (
+			id, cr_name, cr_namespace, cr_kind,
 			display_name, config, status, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	now := time.Now().UTC()
 	m.CreatedAt = now
 	m.UpdatedAt = now
 
 	_, err := s.pool.Exec(ctx, query,
-		m.ID, m.TenantID, m.CRName, m.CRNamespace, m.CRKind,
+		m.ID, m.CRName, m.CRNamespace, m.CRKind,
 		m.DisplayName, m.Config, m.Status, m.CreatedAt, m.UpdatedAt,
 	)
 	if err != nil {
-		return fmt.Errorf("insert tenant migration: %w", err)
+		return fmt.Errorf("insert migration: %w", err)
 	}
 	return nil
 }
 
-// GetByID retrieves a single migration scoped to the given tenant.
-func (s *MigrationStore) GetByID(ctx context.Context, tenantID, id string) (*TenantMigration, error) {
+// GetByID retrieves a single migration by ID.
+func (s *MigrationStore) GetByID(ctx context.Context, id string) (*Migration, error) {
 	query := `
-		SELECT id, tenant_id, cr_name, cr_namespace, cr_kind,
+		SELECT id, cr_name, cr_namespace, cr_kind,
 		       display_name, config, status, created_at, updated_at
-		FROM tenant_migrations
-		WHERE tenant_id = $1 AND id = $2`
+		FROM migrations
+		WHERE id = $1`
 
-	var m TenantMigration
-	err := s.pool.QueryRow(ctx, query, tenantID, id).Scan(
-		&m.ID, &m.TenantID, &m.CRName, &m.CRNamespace, &m.CRKind,
+	var m Migration
+	err := s.pool.QueryRow(ctx, query, id).Scan(
+		&m.ID, &m.CRName, &m.CRNamespace, &m.CRKind,
 		&m.DisplayName, &m.Config, &m.Status, &m.CreatedAt, &m.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("migration %s not found for tenant %s", id, tenantID)
+			return nil, fmt.Errorf("migration %s not found", id)
 		}
-		return nil, fmt.Errorf("get tenant migration: %w", err)
+		return nil, fmt.Errorf("get migration: %w", err)
 	}
 	return &m, nil
 }
 
-// List returns paginated migrations for a tenant along with the total count.
-func (s *MigrationStore) List(ctx context.Context, tenantID string, limit, offset int) ([]TenantMigration, int, error) {
-	countQuery := `SELECT COUNT(*) FROM tenant_migrations WHERE tenant_id = $1`
+// List returns paginated migrations along with the total count.
+func (s *MigrationStore) List(ctx context.Context, limit, offset int) ([]Migration, int, error) {
+	countQuery := `SELECT COUNT(*) FROM migrations`
 	var total int
-	if err := s.pool.QueryRow(ctx, countQuery, tenantID).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count tenant migrations: %w", err)
+	if err := s.pool.QueryRow(ctx, countQuery).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count migrations: %w", err)
 	}
 
 	if total == 0 {
-		return []TenantMigration{}, 0, nil
+		return []Migration{}, 0, nil
 	}
 
 	query := `
-		SELECT id, tenant_id, cr_name, cr_namespace, cr_kind,
+		SELECT id, cr_name, cr_namespace, cr_kind,
 		       display_name, config, status, created_at, updated_at
-		FROM tenant_migrations
-		WHERE tenant_id = $1
+		FROM migrations
 		ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3`
+		LIMIT $1 OFFSET $2`
 
-	rows, err := s.pool.Query(ctx, query, tenantID, limit, offset)
+	rows, err := s.pool.Query(ctx, query, limit, offset)
 	if err != nil {
-		return nil, 0, fmt.Errorf("list tenant migrations: %w", err)
+		return nil, 0, fmt.Errorf("list migrations: %w", err)
 	}
 	defer rows.Close()
 
-	var items []TenantMigration
+	var items []Migration
 	for rows.Next() {
-		var m TenantMigration
+		var m Migration
 		if err := rows.Scan(
-			&m.ID, &m.TenantID, &m.CRName, &m.CRNamespace, &m.CRKind,
+			&m.ID, &m.CRName, &m.CRNamespace, &m.CRKind,
 			&m.DisplayName, &m.Config, &m.Status, &m.CreatedAt, &m.UpdatedAt,
 		); err != nil {
-			return nil, 0, fmt.Errorf("scan tenant migration row: %w", err)
+			return nil, 0, fmt.Errorf("scan migration row: %w", err)
 		}
 		items = append(items, m)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("iterate tenant migration rows: %w", err)
+		return nil, 0, fmt.Errorf("iterate migration rows: %w", err)
 	}
 
 	return items, total, nil
 }
 
-// UpdateStatus sets the status of a migration scoped to the given tenant.
-func (s *MigrationStore) UpdateStatus(ctx context.Context, tenantID, id, status string) error {
+// UpdateStatus sets the status of a migration.
+func (s *MigrationStore) UpdateStatus(ctx context.Context, id, status string) error {
 	query := `
-		UPDATE tenant_migrations
+		UPDATE migrations
 		SET status = $1, updated_at = $2
-		WHERE tenant_id = $3 AND id = $4`
+		WHERE id = $3`
 
-	tag, err := s.pool.Exec(ctx, query, status, time.Now().UTC(), tenantID, id)
+	tag, err := s.pool.Exec(ctx, query, status, time.Now().UTC(), id)
 	if err != nil {
-		return fmt.Errorf("update tenant migration status: %w", err)
+		return fmt.Errorf("update migration status: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("migration %s not found for tenant %s", id, tenantID)
+		return fmt.Errorf("migration %s not found", id)
 	}
 	return nil
 }
 
-// Delete removes a migration record scoped to the given tenant.
-func (s *MigrationStore) Delete(ctx context.Context, tenantID, id string) error {
-	query := `DELETE FROM tenant_migrations WHERE tenant_id = $1 AND id = $2`
+// Delete removes a migration record.
+func (s *MigrationStore) Delete(ctx context.Context, id string) error {
+	query := `DELETE FROM migrations WHERE id = $1`
 
-	tag, err := s.pool.Exec(ctx, query, tenantID, id)
+	tag, err := s.pool.Exec(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("delete tenant migration: %w", err)
+		return fmt.Errorf("delete migration: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("migration %s not found for tenant %s", id, tenantID)
+		return fmt.Errorf("migration %s not found", id)
 	}
 	return nil
 }

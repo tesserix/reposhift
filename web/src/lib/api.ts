@@ -11,19 +11,6 @@ function setStoredToken(token: string) {
 
 function clearStoredToken() {
   localStorage.removeItem("reposhift_token");
-  localStorage.removeItem("reposhift_auth_mode");
-}
-
-function getAuthMode(): "saas" | "selfhosted" | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("reposhift_auth_mode") as
-    | "saas"
-    | "selfhosted"
-    | null;
-}
-
-function setAuthMode(mode: "saas" | "selfhosted") {
-  localStorage.setItem("reposhift_auth_mode", mode);
 }
 
 async function request<T>(
@@ -56,62 +43,19 @@ async function request<T>(
   return res.json();
 }
 
-export interface PlatformMode {
-  mode: "saas" | "selfhosted";
-  githubOAuthEnabled: boolean;
-}
-
 export const api = {
-  // Platform mode detection (public endpoint, no auth required)
-  async getMode(): Promise<PlatformMode> {
-    const res = await fetch(`${BASE}/config/mode`);
-    if (!res.ok) {
-      // Default to saas if the endpoint is unavailable
-      return { mode: "saas", githubOAuthEnabled: true };
-    }
-    return res.json();
-  },
-
-  // Auth — GitHub OAuth
-  login() {
-    window.location.href = `${BASE}/auth/github`;
-  },
-
-  async getToken(code: string, state: string): Promise<{ token: string }> {
-    const data = await request<{ token: string }>("/auth/github/callback", {
-      method: "POST",
-      body: JSON.stringify({ code, state }),
-    });
-    setStoredToken(data.token);
-    setAuthMode("saas");
-    return data;
-  },
-
-  // Auth — Admin token (self-hosted)
+  // Auth — Admin token
   loginWithAdminToken(token: string) {
     setStoredToken(token);
-    setAuthMode("selfhosted");
   },
 
-  // Auth — common
   isAuthenticated(): boolean {
     return !!getStoredToken();
   },
 
-  getAuthMode,
-
   logout() {
     clearStoredToken();
     window.location.href = "/login";
-  },
-
-  // Tenant
-  getTenant() {
-    return request<Tenant>("/tenant");
-  },
-
-  getMembers() {
-    return request<Member[]>("/tenant/members");
   },
 
   // Secrets
@@ -192,23 +136,6 @@ export const api = {
 };
 
 // Types
-export interface Tenant {
-  id: string;
-  name: string;
-  slug: string;
-  plan: string;
-  created_at: string;
-}
-
-export interface Member {
-  id: string;
-  username: string;
-  email: string;
-  role: string;
-  avatar_url: string;
-  joined_at: string;
-}
-
 export interface Secret {
   id: string;
   name: string;

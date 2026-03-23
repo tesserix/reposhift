@@ -6,14 +6,8 @@ The Reposhift web dashboard. A Next.js frontend that connects to the Reposhift P
 
 ```bash
 helm install reposhift-web ./charts/reposhift-web \
-  -n git-migrator --create-namespace \
+  -n reposhift --create-namespace \
   --set platformApiUrl=http://reposhift-platform:8090
-```
-
-## ArgoCD
-
-```bash
-kubectl apply -f argocd/apps/reposhift-web.yaml
 ```
 
 ## Parameters
@@ -53,7 +47,7 @@ kubectl apply -f argocd/apps/reposhift-web.yaml
 | `serviceAccount.name` | SA name override | `""` |
 | `serviceAccount.annotations` | SA annotations | `{}` |
 
-### Ingress (NGINX)
+### Ingress
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -62,14 +56,6 @@ kubectl apply -f argocd/apps/reposhift-web.yaml
 | `ingress.className` | Ingress class name | `""` |
 | `ingress.annotations` | Additional annotations | `{}` |
 | `ingress.tls` | Enable TLS | `false` |
-
-### Istio VirtualService
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `istio.enabled` | Enable Istio VirtualService | `false` |
-| `istio.gateway` | Istio Gateway reference | `istio-system/default-gateway` |
-| `istio.host` | Hostname for routing | `reposhift.example.com` |
 
 ### Scheduling
 
@@ -84,23 +70,22 @@ kubectl apply -f argocd/apps/reposhift-web.yaml
 
 | Route | Description |
 |-------|-------------|
-| `/login` | GitHub OAuth or admin token login |
+| `/login` | Admin token login |
 | `/` | Dashboard — migration stats, recent activity |
 | `/migrations` | List all migrations with status/progress |
 | `/migrations/new` | Create migration wizard with branch filtering |
 | `/migrations/[id]` | Migration detail with real-time progress |
 | `/secrets` | Manage ADO PATs, GitHub tokens with validate/test |
-| `/settings` | Tenant settings and member management |
 
 ## Architecture
 
 ```
-Browser → Reposhift Web (Next.js :3005)
-            ↓ /api/platform/* (proxy)
+Browser -> Reposhift Web (Next.js :3005)
+            | /api/platform/* (proxy)
           Reposhift Platform (Go :8090)
-            ↓ K8s API
+            | K8s API
           Reposhift Operator (Go :8080)
-            ↓ CRDs
+            | CRDs
           Migration Jobs
 ```
 

@@ -1,400 +1,244 @@
-# ADO to GitHub Migration Operator
+# Reposhift
 
-A tool that moves your code and work items from Azure DevOps (ADO) to GitHub automatically.
+**Migrate Azure DevOps repos, work items, and pipelines to GitHub -- automatically.**
 
-## What Does It Do?
+Reposhift is a Kubernetes-native migration platform that moves your entire Azure DevOps organization to GitHub with full history preservation, real-time progress tracking, and a web dashboard. It runs as a set of controllers and CRDs on any Kubernetes cluster.
 
-This tool helps you migrate:
-- **Repositories** - Your code and git history
-- **Work Items** - Tasks, bugs, stories → GitHub Issues
-- **Pipelines** - CI/CD → GitHub Actions
-- **Projects** - Work tracking boards
+---
 
-## Why Use This?
+## Features
 
-**Problem:** Manually moving 50 repositories takes 2 days and is error-prone.
+- **Repository Migration** -- Clone from Azure DevOps and push to GitHub with full branch, tag, and commit history
+- **Monorepo Assembly** -- Merge multiple ADO repositories into a single GitHub monorepo with proper subdirectory layout
+- **Work Item Migration** -- Convert ADO work items (Epics, User Stories, Bugs, Tasks) to GitHub Issues with comments, attachments, and labels
+- **Pipeline Conversion** -- Transform ADO YAML pipelines into GitHub Actions workflows with auto-discovery
+- **Branch Filtering** -- Include or exclude branches using glob patterns (`feature/*`, `release/*`)
+- **Shallow Cloning** -- Configurable clone depth to reduce time and disk usage for large repositories
+- **GitHub App Support** -- First-class support for GitHub App authentication with automatic token refresh (10,000 req/hr)
+- **Real-Time Dashboard** -- Web UI for creating, monitoring, and managing migrations
+- **Kubernetes Operator** -- Declarative CRD-based migrations with reconciliation, retry, and status tracking
+- **Auto-Discovery** -- Automatically find all repositories and pipelines in an ADO project
+- **Continuous Sync** -- Optionally keep ADO and GitHub in sync on a schedule after initial migration
+- **Batch Processing** -- Parallel workers with configurable concurrency and rate limiting
 
-**Solution:** This tool does it automatically in 2 hours!
+---
 
-### Key Benefits
-
-1. **Automatic Discovery** - Finds all your repos automatically
-2. **Parallel Migration** - Each repo gets its own worker (25x faster!)
-3. **Smart Naming** - Renames repos using templates
-4. **Auto-Scaling** - Adds more workers when needed
-5. **Safe** - Failed migrations don't lose data
-
-## Quick Example
-
-Instead of manually listing 50 repos like this:
-```yaml
-resources:
-  - sourceName: "java-authority"
-    targetName: "product-lg-authority-java"
-  - sourceName: "devops-infra"
-    targetName: "product-lg-authority-devops-infra"
-  # ... 48 more! 😰
-```
-
-Just write this:
-```yaml
-discovery:
-  repositories:
-    enabled: true
-    namingConvention:
-      template: "product-lg-authority-{{.SourceName}}"
-```
-
-Done! The tool finds all repos and renames them automatically.
-
-## How It Works (Simple Version)
+## Architecture
 
 ```
-You → Tell operator to migrate repos
-      ↓
-Operator → Finds all repos in ADO
-      ↓
-Operator → Creates one worker pod per repo
-      ↓
-Workers → Migrate repos in parallel
-      ↓
-Done! → All repos now in GitHub
+┌─────────────┐     ┌──────────────────┐     ┌───────────────┐
+│  Web UI      │────>│  Platform API     │────>│  K8s Operator  │
+│  (Next.js)   │     │  (Go/Gin)        │     │  (Go)          │
+│  :3005       │     │  :8090           │     │  :8080         │
+└─────────────┘     └──────────────────┘     └───────────────┘
+                            │                       │
+                            v                       v
+                     ┌──────────┐           ┌───────────────┐
+                     │PostgreSQL│           │ K8s Secrets    │
+                     └──────────┘           │ + CRDs         │
+                                            └───────────────┘
 ```
 
-## 5 Minute Setup
+| Component | Description | Image |
+|-----------|-------------|-------|
+| **Web UI** | Next.js dashboard for managing migrations | `ghcr.io/tesserix/reposhift-web` |
+| **Platform API** | Go/Gin REST API, manages state in PostgreSQL | `ghcr.io/tesserix/reposhift-platform` |
+| **Operator** | Kubernetes controller that reconciles CRDs and executes migrations | `ghcr.io/tesserix/reposhift` |
 
-### 1. Install on Kubernetes
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Kubernetes 1.26+ cluster
+- Helm 3.x
+- PostgreSQL 14+ (or use the bundled install)
+- `kubectl` configured for your cluster
+
+### 1. Install the Operator
 
 ```bash
-kubectl apply -f config/crd/bases/
-kubectl create namespace migration-system
-kubectl apply -f config/manager/worker-deployment.yaml
+helm repo add reposhift https://tesserix.github.io/reposhift
+helm repo update
+
+kubectl create namespace reposhift
+
+helm install reposhift-operator reposhift/ado-git-migration \
+  --namespace reposhift \
+  --set auth.github.token="ghp_your_github_pat" \
+  --set auth.azure.clientId="your-client-id" \
+  --set auth.azure.clientSecret="your-client-secret" \
+  --set auth.azure.tenantId="your-tenant-id"
 ```
 
-### 2. Add Your Credentials
+### 2. Install the Platform API
 
 ```bash
-kubectl create secret generic github-token \
-  --namespace=migration-system \
-  --from-literal=token=your_github_token
+ADMIN_TOKEN=$(openssl rand -hex 32)
 
-kubectl create secret generic ado-token \
-  --namespace=migration-system \
-  --from-literal=token=your_ado_token
+helm install reposhift-platform reposhift/reposhift-platform \
+  --namespace reposhift \
+  --set adminToken="$ADMIN_TOKEN" \
+  --set postgresPassword="your-pg-password" \
+  --set postgresql.host="your-pg-host"
 ```
 
-### 3. Create Migration
+### 3. Install the Web UI
 
-Create `my-migration.yaml`:
+```bash
+helm install reposhift-web reposhift/reposhift-web \
+  --namespace reposhift
+```
+
+### 4. Access the Dashboard
+
+```bash
+kubectl port-forward svc/reposhift-web 3005:3005 -n reposhift
+```
+
+Open `http://localhost:3005` and log in with the admin token from step 2.
+
+### 5. Create Your First Migration
+
+In the dashboard, click **New Migration** and fill in:
+- **Source**: Your ADO organization and project
+- **Target**: Your GitHub organization
+- **Repositories**: Select which repos to migrate
+
+Or apply a CRD directly:
+
 ```yaml
 apiVersion: migration.ado-to-git-migration.io/v1
-kind: MigrationJob
+kind: AdoToGitMigration
 metadata:
-  name: my-migration
+  name: my-first-migration
+  namespace: reposhift
 spec:
-  azureDevOps:
-    organization: your-org
-    project: your-project
-    servicePrincipal:
-      clientId: "xxx"
-      clientSecretRef:
-        name: ado-sp-secret
-        key: client-secret
-      tenantId: "xxx"
-
-  github:
-    owner: your-github-org
-    tokenRef:
-      name: github-token
-      key: token
-
+  type: repository
+  source:
+    organization: my-ado-org
+    project: MyProject
+    auth:
+      pat:
+        tokenRef:
+          name: ado-pat-secret
+          key: token
+  target:
+    owner: my-github-org
+    auth:
+      tokenRef:
+        name: github-token-secret
+        key: token
+  resources:
+    - type: repository
+      sourceId: my-repo-id
+      sourceName: my-ado-repo
+      targetName: my-github-repo
   settings:
-    batchSize: 1  # One worker per repo
-
-  discovery:
-    repositories:
-      enabled: true
-      namingConvention:
-        strategy: template
-        template: "prefix-{{.SourceName}}"
+    maxHistoryDays: 730
+    retryAttempts: 3
+    parallelWorkers: 3
 ```
-
-### 4. Run It
 
 ```bash
 kubectl apply -f my-migration.yaml
+kubectl get adotogitmigration -n reposhift --watch
 ```
 
-Watch it work:
-```bash
-kubectl get pods -n migration-system -w
-```
+---
 
-## Main Concepts
+## Migration Patterns
 
-### Auto-Discovery
+| Pattern | CRD Kind | Description |
+|---------|----------|-------------|
+| **1:1 Repository** | `AdoToGitMigration` | One ADO repo to one GitHub repo with full history |
+| **Many:1 Monorepo** | `MonoRepoMigration` | Multiple ADO repos merged into one GitHub monorepo |
+| **Work Items** | `WorkItemMigration` | ADO work items to GitHub Issues with labels and projects |
+| **Pipelines** | `PipelineToWorkflow` | ADO pipelines to GitHub Actions workflows |
+| **Batch Discovery** | `MigrationJob` | Auto-discover and migrate all repos in a project |
 
-The tool automatically finds repos in your ADO project. You don't list them manually.
+See [docs/migration-patterns.md](docs/migration-patterns.md) for detailed examples of each pattern.
 
-**Example:**
-- You have 50 repos in ADO project "Platform-Team"
-- Tool discovers all 50 automatically
-- Applies naming rules to all of them
+---
 
-### Naming Templates
+## Authentication
 
-Control how repos are named in GitHub:
+Reposhift supports two GitHub authentication methods:
 
-| What You Want | Template | ADO Name | GitHub Name |
-|---------------|----------|----------|-------------|
-| Add prefix | `prefix-{{.SourceName}}` | `my-repo` | `prefix-my-repo` |
-| Add suffix | `{{.SourceName}}-suffix` | `my-repo` | `my-repo-suffix` |
-| Complex | `{{.Project}}-{{.SourceName}}` | `my-repo` | `platform-team-my-repo` |
-| Keep same | `strategy: same` | `my-repo` | `my-repo` |
+| Method | Rate Limit | Best For |
+|--------|-----------|----------|
+| **GitHub App** (recommended) | 10,000 req/hr per installation | Production, large migrations |
+| **Personal Access Token (PAT)** | 5,000 req/hr | Testing, small migrations |
 
-### Parallel Workers
+For Azure DevOps, authentication is via **Personal Access Token** or **Service Principal**.
 
-- **Old way:** Migrate repos one by one (slow!)
-- **New way:** Each repo gets its own worker pod (fast!)
+See [docs/github-app-setup.md](docs/github-app-setup.md) for GitHub App configuration.
 
-**Speed:**
-- 10 repos: 5 hours → 15 minutes (20x faster)
-- 50 repos: 25 hours → 1 hour (25x faster)
-- 100 repos: 50 hours → 2 hours (25x faster)
+---
 
-### Pattern Matching
+## Documentation
 
-Only migrate specific repos:
+| Document | Description |
+|----------|-------------|
+| [Setup Guide](docs/setup-guide.md) | Detailed installation and configuration |
+| [GitHub App Setup](docs/github-app-setup.md) | Step-by-step GitHub App configuration |
+| [Migration Patterns](docs/migration-patterns.md) | Guides for every migration type |
+| [Performance Tuning](docs/performance-tuning.md) | Optimize for large-scale migrations |
+| [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
 
-```yaml
-discovery:
-  repositories:
-    enabled: true
-    includePatterns:
-    - "java-*"        # Only repos starting with "java-"
-    - "service-*"     # Or starting with "service-"
-    excludePatterns:
-    - "*-archived"    # But skip archived ones
-    - "*-test"        # And test ones
-```
+---
+
+## CRD Reference
+
+Reposhift installs the following Custom Resource Definitions:
+
+| CRD | Purpose |
+|-----|---------|
+| `AdoToGitMigration` | Standard 1:1 repository migration |
+| `MonoRepoMigration` | Many:1 monorepo assembly |
+| `WorkItemMigration` | Work item to GitHub Issues migration |
+| `PipelineToWorkflow` | Pipeline to GitHub Actions conversion |
+| `MigrationJob` | Batch migration with auto-discovery |
+| `BatchMigration` | Individual batch unit (managed by MigrationJob) |
+| `GitHubProject` | GitHub Project board creation |
+| `AdoDiscovery` | ADO project discovery results |
+
+---
 
 ## Project Structure
 
 ```
-/
-├── api/v1/                          # Kubernetes resource definitions
-│   ├── migrationjob_types.go       # Main migration job
-│   ├── batchmigration_types.go     # Worker batches
-│   └── discovery_config_types.go   # Auto-discovery config
-│
+reposhift/
+├── api/v1/                    # CRD type definitions
 ├── internal/
-│   ├── controller/                 # Main logic
-│   │   ├── migrationjob_controller.go      # Orchestrates everything
-│   │   └── batchmigration_controller.go    # Worker logic
-│   │
-│   └── services/                   # API integrations
-│       ├── ado_service.go          # Azure DevOps API
-│       └── github_service.go       # GitHub API
-│
+│   ├── controller/            # Kubernetes controllers
+│   └── services/              # ADO, GitHub, migration logic
+├── charts/
+│   ├── ado-git-migration/     # Operator Helm chart
+│   ├── reposhift-platform/    # Platform API Helm chart
+│   └── reposhift-web/         # Web UI Helm chart
 ├── config/
-│   ├── crd/bases/                  # Kubernetes CRDs
-│   ├── manager/                    # Deployment configs
-│   └── autoscaling/                # Auto-scaling configs
-│
-└── CLAIM_TEMPLATES/                # Migration templates
-    ├── 00-secrets-setup.yaml
-    ├── 01-auto-discovery-repo-migration.yaml
-    ├── 02-workitems-migration.yaml
-    └── 03-complete-migration.yaml
+│   └── crd/bases/             # Generated CRD manifests
+└── EXAMPLES/                  # Ready-to-use migration examples
 ```
-
-## Code Flow (Simple Explanation)
-
-### 1. You Submit a MigrationJob
-
-```yaml
-kind: MigrationJob
-spec:
-  discovery:
-    repositories:
-      enabled: true
-```
-
-### 2. Controller Discovers Repos
-
-Code: `internal/controller/migrationjob_controller.go`
-```go
-// Controller connects to ADO
-repos := discoverRepositories(adoProject)
-// Returns: ["repo1", "repo2", "repo3"]
-```
-
-### 3. Controller Creates Batches
-
-Code: `internal/controller/migrationjob_controller.go`
-```go
-// Creates one batch per repo
-for each repo:
-    create BatchMigration {
-        resources: [repo],
-        targetName: applyNamingTemplate(repo)
-    }
-```
-
-### 4. Workers Claim Batches
-
-Code: `internal/controller/batchmigration_controller.go`
-```go
-// Each worker pod grabs a batch
-batch := claimBatch(workerID)
-migrateRepository(batch.resources[0])
-```
-
-### 5. Migration Happens
-
-Code: `internal/services/migration_service.go`
-```go
-// Clone from ADO
-git clone <ado-repo>
-
-// Push to GitHub
-git push <github-repo>
-
-// Done!
-```
-
-## Important Files
-
-| File | What It Does | When You Edit It |
-|------|--------------|------------------|
-| `api/v1/migrationjob_types.go` | Defines migration job structure | Add new config options |
-| `internal/controller/migrationjob_controller.go` | Main orchestration logic | Change how discovery works |
-| `internal/controller/batchmigration_controller.go` | Worker logic | Change how repos are migrated |
-| `internal/services/ado_service.go` | ADO API calls | Fix ADO API issues |
-| `internal/services/github_service.go` | GitHub API calls | Fix GitHub API issues |
-| `config/manager/worker-deployment.yaml` | Worker pod config | Change resources/scaling |
-| `config/autoscaling/hpa.yaml` | Auto-scaling rules | Change scaling behavior |
-
-## Common Tasks
-
-### Check Migration Status
-
-```bash
-# Overall progress
-kubectl get migrationjob my-migration -n migration-system
-
-# See discovered repos
-kubectl get migrationjob my-migration -o yaml | grep -A 50 discovery
-
-# See active workers
-kubectl get pods -n migration-system
-
-# Check a failed migration
-kubectl logs <pod-name> -n migration-system
-```
-
-### Debug a Failed Migration
-
-Failed pods stay alive so you can debug:
-
-```bash
-# Find failed batch
-kubectl get batchmigrations -n migration-system | grep Failed
-
-# Check what went wrong
-kubectl describe batchmigration <batch-name> -n migration-system
-
-# Look at logs
-kubectl logs <worker-pod> -n migration-system
-
-# Or go inside the pod
-kubectl exec -it <worker-pod> -n migration-system -- sh
-```
-
-### Retry a Failed Migration
-
-```bash
-# Delete the failed batch (it will be recreated)
-kubectl delete batchmigration <batch-name> -n migration-system
-
-# Or patch it to retry
-kubectl patch batchmigration <batch-name> -n migration-system \
-  --type=merge -p '{"status":{"phase":"Pending"}}'
-```
-
-## Testing Locally
-
-### 1. Build
-
-```bash
-make manifests
-make generate
-make build
-```
-
-### 2. Run Tests
-
-```bash
-make test
-```
-
-### 3. Deploy Locally
-
-```bash
-# Install CRDs
-make install
-
-# Run controller locally
-make run
-```
-
-### 4. Test Migration
-
-```bash
-kubectl apply -f CLAIM_TEMPLATES/01-auto-discovery-repo-migration.yaml
-```
-
-## Performance
-
-### Small Migration (10 repos)
-- **Before:** 5 hours
-- **After:** 15 minutes
-- **Speedup:** 20x
-
-### Medium Migration (50 repos)
-- **Before:** 25 hours
-- **After:** 1 hour
-- **Speedup:** 25x
-
-### Large Migration (100 repos)
-- **Before:** 50 hours
-- **After:** 2 hours
-- **Speedup:** 25x
-
-## Safety Features
-
-1. **No Data Loss** - Original ADO repos stay untouched
-2. **Failed Pods Stay Alive** - Easy to debug
-3. **Automatic Retries** - Failed migrations retry automatically
-4. **Progress Tracking** - See exactly what's happening
-5. **Validation** - Checks credentials before starting
-
-## Need Help?
-
-1. **FAQ** - See `FAQ.md` for common questions
-2. **Architecture** - See `ARCHITECTURE.md` for how it works
-3. **Engineering Guide** - See `ENGINEERING_HANDBOOK.md` for development
-4. **Check Logs** - `kubectl logs <pod-name> -n migration-system`
-5. **Check Status** - `kubectl describe migrationjob <name> -n migration-system`
-
-## Quick Links
-
-- **Templates:** See `CLAIM_TEMPLATES/` folder for ready-to-use migration templates
-- **History Configuration:** See `HISTORY_MIGRATION_CONFIG.md` for controlling commit history (2-10 years)
-- **Architecture:** See `ARCHITECTURE.md`
-- **FAQ:** See `FAQ.md`
-- **Engineering:** See `ENGINEERING_HANDBOOK.md`
 
 ---
 
-**Built to migrate at scale** 🚀
+## Contributing
+
+Contributions are welcome. To get started:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-change`)
+3. Make your changes
+4. Run tests (`make test`)
+5. Submit a pull request
+
+Please ensure all tests pass and CRDs are regenerated (`make manifests generate`) before submitting.
+
+---
+
+## License
+
+Reposhift is licensed under the [Apache License 2.0](LICENSE).

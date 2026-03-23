@@ -7,44 +7,33 @@ image:
   pullPolicy: IfNotPresent
 
 replicaCount: 1
-
-imagePullSecrets:
-  - name: ghcr-secret
-
-mode: saas
+imagePullSecrets: []
 
 port: 8090
 
-resources:
-  requests:
-    memory: "128Mi"
-    cpu: "100m"
-  limits:
-    memory: "512Mi"
-    cpu: "500m"
+# Required: generate with `openssl rand -hex 32`
+adminToken: ""
 
+# PostgreSQL connection
 postgresql:
-  host: "10.117.240.3"
+  host: "localhost"
   port: 5432
   database: reposhift_db
   user: reposhift_user
-  sslmode: require
+  sslmode: disable
 
-# Secrets — set via Helm values override or sealed secrets
-jwtSecret: ""
-encryptionKey: ""
-adminToken: ""
+# Required: database password
 postgresPassword: ""
 
-github:
-  clientID: ""
-  clientSecret: ""
-  redirectURL: ""
+# Operator API URL (internal service)
+operatorURL: "http://reposhift-operator:8080"
 
+# CORS
 cors:
-  allowedOrigins: "*"
+  allowedOrigins: "http://localhost:3005"
 
-operatorURL: "http://ado-git-migration:8080"
+# K8s namespace for migration CRDs and secrets
+k8sNamespace: "reposhift"
 
 serviceAccount:
   create: true
@@ -55,15 +44,12 @@ ingress:
   className: ""
   annotations: {}
   hosts: []
-  #  - host: reposhift.example.com
   tls: []
-  #  - secretName: reposhift-tls
-  #    hosts:
-  #      - reposhift.example.com
 
-istio:
-  enabled: false
-  gateway: istio-ingress/tesseract-gateway
-  host: repomigrator.tesserix.app
-
-env: {}
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"

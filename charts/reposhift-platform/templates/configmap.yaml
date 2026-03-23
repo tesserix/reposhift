@@ -5,17 +5,12 @@ metadata:
   labels:
     {{- include "reposhift-platform.labels" . | nindent 4 }}
 data:
-  REPOSHIFT_MODE: {{ .Values.mode | quote }}
   PORT: {{ .Values.port | quote }}
   POSTGRES_HOST: {{ .Values.postgresql.host | quote }}
   POSTGRES_PORT: {{ .Values.postgresql.port | quote }}
   POSTGRES_DATABASE: {{ .Values.postgresql.database | quote }}
   POSTGRES_USER: {{ .Values.postgresql.user | quote }}
   POSTGRES_SSLMODE: {{ .Values.postgresql.sslmode | quote }}
-  GITHUB_CLIENT_ID: {{ .Values.github.clientID | quote }}
-  GITHUB_REDIRECT_URL: {{ .Values.github.redirectURL | quote }}
   CORS_ALLOWED_ORIGINS: {{ .Values.cors.allowedOrigins | quote }}
   OPERATOR_URL: {{ .Values.operatorURL | quote }}
-  {{- range $key, $value := .Values.env }}
-  {{ $key }}: {{ $value | quote }}
-  {{- end }}
+  K8S_NAMESPACE: {{ .Values.k8sNamespace | quote }}

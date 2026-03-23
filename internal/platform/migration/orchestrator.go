@@ -39,17 +39,17 @@ type CreateMigrationRequest struct {
 	// If empty/unset, all branches are migrated.
 	BranchFilterMode BranchFilterMode `json:"branchFilterMode,omitempty"`
 	// Branches is the list of branch names or glob patterns (e.g. "feature/*").
-	Branches         []string         `json:"branches,omitempty"`
+	Branches []string `json:"branches,omitempty"`
 
-	Settings         map[string]interface{} `json:"settings,omitempty"`
+	Settings map[string]interface{} `json:"settings,omitempty"`
 }
 
 // MigrationStatusResponse combines the DB record with live CRD status.
 type MigrationStatusResponse struct {
-	TenantMigration
+	Migration
 
-	Phase    string           `json:"phase"`
-	Progress ProgressSummary  `json:"progress"`
+	Phase     string               `json:"phase"`
+	Progress  ProgressSummary      `json:"progress"`
 	Resources []ResourceStatusItem `json:"resources,omitempty"`
 }
 
@@ -63,11 +63,11 @@ type ProgressSummary struct {
 
 // ResourceStatusItem tracks a single resource within a migration.
 type ResourceStatusItem struct {
-	Name       string `json:"name"`
-	Type       string `json:"type"`
-	Status     string `json:"status"`
-	GitHubURL  string `json:"githubUrl,omitempty"`
-	Error      string `json:"error,omitempty"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	Status    string `json:"status"`
+	GitHubURL string `json:"githubUrl,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 // Orchestrator coordinates migration lifecycle between the database,
@@ -94,20 +94,19 @@ func NewOrchestrator(store *MigrationStore, sp secrets.SecretsProvider, k8s kube
 }
 
 // CreateMigration provisions the backing K8s resources and persists a
-// migration record for the tenant.
-func (o *Orchestrator) CreateMigration(ctx context.Context, tenantID string, req CreateMigrationRequest) (*TenantMigration, error) {
+// migration record.
+func (o *Orchestrator) CreateMigration(ctx context.Context, req CreateMigrationRequest) (*Migration, error) {
 	migrationID := uuid.New().String()
 	crName := fmt.Sprintf("mig-%s", migrationID[:8])
-	ns := o.namespaceForTenant(tenantID)
 
 	// Resolve ADO token from the secrets provider.
-	adoData, err := o.secrets.Get(ctx, tenantID, req.ADOSecretName)
+	adoData, err := o.secrets.Get(ctx, req.ADOSecretName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve ADO secret %q: %w", req.ADOSecretName, err)
 	}
 
 	// Resolve GitHub token from the secrets provider.
-	ghData, err := o.secrets.Get(ctx, tenantID, req.GitHubSecretName)
+	ghData, err := o.secrets.Get(ctx, req.GitHubSecretName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve GitHub secret %q: %w", req.GitHubSecretName, err)
 	}
@@ -115,29 +114,22 @@ func (o *Orchestrator) CreateMigration(ctx context.Context, tenantID string, req
 	// Create a K8s Secret containing both sets of credentials so the
 	// operator controller can mount them into the migration job.
 	k8sSecretName := fmt.Sprintf("%s-creds", crName)
-	if err := o.ensureK8sSecret(ctx, ns, k8sSecretName, adoData, ghData); err != nil {
+	if err := o.ensureK8sSecret(ctx, o.namespace, k8sSecretName, adoData, ghData); err != nil {
 		return nil, fmt.Errorf("create k8s secret: %w", err)
 	}
 
 	// TODO: Create the AdoToGitMigration CRD object in the cluster.
-	// This will be implemented once the dynamic client helpers are wired up.
-	// The CRD spec should reference:
-	//   - Source: req.SourceOrg / req.SourceProject / req.SourceRepos
-	//   - Target: req.TargetOwner
-	//   - Auth secret: k8sSecretName in namespace ns
-	//   - Settings: req.Settings
 
-	// Persist the migration record in the tenant_migrations table.
+	// Persist the migration record in the migrations table.
 	configBytes, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshal migration config: %w", err)
 	}
 
-	m := &TenantMigration{
+	m := &Migration{
 		ID:          migrationID,
-		TenantID:    tenantID,
 		CRName:      crName,
-		CRNamespace: ns,
+		CRNamespace: o.namespace,
 		CRKind:      "AdoToGitMigration",
 		DisplayName: req.DisplayName,
 		Config:      configBytes,
@@ -152,15 +144,15 @@ func (o *Orchestrator) CreateMigration(ctx context.Context, tenantID string, req
 
 // GetMigrationStatus returns the DB record enriched with live CRD status
 // when available.
-func (o *Orchestrator) GetMigrationStatus(ctx context.Context, tenantID, id string) (*MigrationStatusResponse, error) {
-	m, err := o.store.GetByID(ctx, tenantID, id)
+func (o *Orchestrator) GetMigrationStatus(ctx context.Context, id string) (*MigrationStatusResponse, error) {
+	m, err := o.store.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
 	resp := &MigrationStatusResponse{
-		TenantMigration: *m,
-		Phase:           m.Status,
+		Migration: *m,
+		Phase:     m.Status,
 		Progress: ProgressSummary{
 			Total:      0,
 			Completed:  0,
@@ -177,29 +169,29 @@ func (o *Orchestrator) GetMigrationStatus(ctx context.Context, tenantID, id stri
 }
 
 // PauseMigration annotates the CRD to request a pause.
-func (o *Orchestrator) PauseMigration(ctx context.Context, tenantID, id string) error {
-	return o.annotateCRD(ctx, tenantID, id, "reposhift.tesserix.io/action", "pause")
+func (o *Orchestrator) PauseMigration(ctx context.Context, id string) error {
+	return o.annotateCRD(ctx, id, "reposhift.tesserix.io/action", "pause")
 }
 
 // ResumeMigration annotates the CRD to request a resume.
-func (o *Orchestrator) ResumeMigration(ctx context.Context, tenantID, id string) error {
-	return o.annotateCRD(ctx, tenantID, id, "reposhift.tesserix.io/action", "resume")
+func (o *Orchestrator) ResumeMigration(ctx context.Context, id string) error {
+	return o.annotateCRD(ctx, id, "reposhift.tesserix.io/action", "resume")
 }
 
 // CancelMigration annotates the CRD to request cancellation.
-func (o *Orchestrator) CancelMigration(ctx context.Context, tenantID, id string) error {
-	return o.annotateCRD(ctx, tenantID, id, "reposhift.tesserix.io/action", "cancel")
+func (o *Orchestrator) CancelMigration(ctx context.Context, id string) error {
+	return o.annotateCRD(ctx, id, "reposhift.tesserix.io/action", "cancel")
 }
 
 // RetryMigration annotates the CRD to request a retry.
-func (o *Orchestrator) RetryMigration(ctx context.Context, tenantID, id string) error {
-	return o.annotateCRD(ctx, tenantID, id, "reposhift.tesserix.io/action", "retry")
+func (o *Orchestrator) RetryMigration(ctx context.Context, id string) error {
+	return o.annotateCRD(ctx, id, "reposhift.tesserix.io/action", "retry")
 }
 
 // annotateCRD sets an annotation on the backing CRD to signal a lifecycle
 // action to the operator controller.
-func (o *Orchestrator) annotateCRD(ctx context.Context, tenantID, id, key, value string) error {
-	m, err := o.store.GetByID(ctx, tenantID, id)
+func (o *Orchestrator) annotateCRD(ctx context.Context, id, key, value string) error {
+	m, err := o.store.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -223,7 +215,8 @@ func (o *Orchestrator) annotateCRD(ctx context.Context, tenantID, id, key, value
 	}
 
 	_ = m // used above for CRD namespace/name lookup
-	return o.store.UpdateStatus(ctx, tenantID, id, newStatus)
+	_ = key
+	return o.store.UpdateStatus(ctx, id, newStatus)
 }
 
 // ensureK8sSecret creates or updates a Kubernetes Secret containing
@@ -267,24 +260,14 @@ func (o *Orchestrator) ensureK8sSecret(ctx context.Context, namespace, name stri
 	return nil
 }
 
-// namespaceForTenant returns the Kubernetes namespace to use for a tenant's
-// migration resources. Multi-tenant deployments isolate per tenant;
-// single-tenant falls back to the default namespace.
-func (o *Orchestrator) namespaceForTenant(tenantID string) string {
-	// For now use a convention-based namespace. A future iteration can
-	// look this up from the tenants table.
-	_ = tenantID
-	return o.namespace
-}
-
-// ListMigrations returns paginated migrations for a tenant.
-func (o *Orchestrator) ListMigrations(ctx context.Context, tenantID string, limit, offset int) ([]TenantMigration, int, error) {
-	return o.store.List(ctx, tenantID, limit, offset)
+// ListMigrations returns paginated migrations.
+func (o *Orchestrator) ListMigrations(ctx context.Context, limit, offset int) ([]Migration, int, error) {
+	return o.store.List(ctx, limit, offset)
 }
 
 // DeleteMigration removes the migration record and its backing K8s resources.
-func (o *Orchestrator) DeleteMigration(ctx context.Context, tenantID, id string) error {
-	m, err := o.store.GetByID(ctx, tenantID, id)
+func (o *Orchestrator) DeleteMigration(ctx context.Context, id string) error {
+	m, err := o.store.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -297,7 +280,7 @@ func (o *Orchestrator) DeleteMigration(ctx context.Context, tenantID, id string)
 
 	// TODO: Delete the AdoToGitMigration CRD from the cluster.
 
-	return o.store.Delete(ctx, tenantID, id)
+	return o.store.Delete(ctx, id)
 }
 
 // withTimeout wraps a context with a standard operation timeout.
