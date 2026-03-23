@@ -26,7 +26,7 @@ export default function LoginPage() {
 
     try {
       const res = await fetch("/api/platform/v1/dashboard/stats", {
-        headers: { Authorization: `Bearer ${adminToken.trim()}` },
+        headers: { "X-Admin-Token": adminToken.trim() },
       });
 
       if (!res.ok) {

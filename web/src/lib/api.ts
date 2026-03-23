@@ -23,7 +23,7 @@ async function request<T>(
     ...(options.headers as Record<string, string>),
   };
   if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+    headers["X-Admin-Token"] = token;
   }
 
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
