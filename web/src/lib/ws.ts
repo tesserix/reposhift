@@ -40,8 +40,8 @@ class WebSocketClient {
           if (wildcardHandlers) {
             wildcardHandlers.forEach((handler) => handler(msg));
           }
-        } catch {
-          // ignore parse errors
+        } catch (err) {
+          console.warn("WebSocket message parse error:", err, "raw data:", event.data);
         }
       };
 

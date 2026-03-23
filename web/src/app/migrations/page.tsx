@@ -10,6 +10,7 @@ export default function MigrationsPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const limit = 20;
 
   useEffect(() => {
@@ -22,13 +23,16 @@ export default function MigrationsPage() {
 
   function loadMigrations() {
     setLoading(true);
+    setError(null);
     api
       .listMigrations(page, limit)
       .then((data) => {
         setMigrations(data.items || []);
         setTotal(data.total || 0);
       })
-      .catch(() => {})
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load migrations");
+      })
       .finally(() => setLoading(false));
   }
 
@@ -52,6 +56,12 @@ export default function MigrationsPage() {
             New Migration
           </Link>
         </div>
+
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
 
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/50">
           <div className="overflow-x-auto">

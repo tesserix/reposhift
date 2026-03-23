@@ -9,6 +9,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [migrations, setMigrations] = useState<Migration[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!api.isAuthenticated()) {
@@ -21,7 +22,9 @@ export default function DashboardPage() {
         setStats(s);
         setMigrations(m.items || []);
       })
-      .catch(() => {})
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load dashboard data");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -50,6 +53,12 @@ export default function DashboardPage() {
             Overview of your migration activity
           </p>
         </div>
+
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
 
         <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {statCards.map((card) => (

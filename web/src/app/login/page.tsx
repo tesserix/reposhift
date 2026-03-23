@@ -10,34 +10,32 @@ export default function LoginPage() {
   const [adminToken, setAdminToken] = useState("");
   const [tokenSubmitting, setTokenSubmitting] = useState(false);
 
-  // Detect platform mode on mount
+  // Detect platform mode on mount, then handle OAuth callback or existing auth
   useEffect(() => {
-    api.getMode().then(setMode).catch(() => {
-      // Fallback: assume saas with GitHub OAuth
+    api.getMode().then((detectedMode) => {
+      setMode(detectedMode);
+
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const state = params.get("state");
+
+      if (code && state) {
+        setLoading(true);
+        api
+          .getToken(code, state)
+          .then(() => {
+            window.location.href = "/";
+          })
+          .catch((err) => {
+            setError(err.message || "Authentication failed");
+            setLoading(false);
+          });
+      } else if (api.isAuthenticated()) {
+        window.location.href = "/";
+      }
+    }).catch(() => {
       setMode({ mode: "saas", githubOAuthEnabled: true });
     });
-  }, []);
-
-  // Handle GitHub OAuth callback (?code=...&state=...)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    const state = params.get("state");
-
-    if (code && state) {
-      setLoading(true);
-      api
-        .getToken(code, state)
-        .then(() => {
-          window.location.href = "/";
-        })
-        .catch((err) => {
-          setError(err.message || "Authentication failed");
-          setLoading(false);
-        });
-    } else if (api.isAuthenticated()) {
-      window.location.href = "/";
-    }
   }, []);
 
   const handleAdminTokenSubmit = async (e: React.FormEvent) => {

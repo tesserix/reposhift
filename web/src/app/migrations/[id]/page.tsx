@@ -13,12 +13,15 @@ export default function MigrationDetailPage() {
   const [migration, setMigration] = useState<Migration | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadMigration = useCallback(() => {
     api
       .getMigration(id)
       .then(setMigration)
-      .catch(() => {})
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load migration");
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -44,6 +47,7 @@ export default function MigrationDetailPage() {
     return () => {
       unsub();
       clearInterval(interval);
+      wsClient.disconnect();
     };
   }, [id, loadMigration]);
 
@@ -73,7 +77,14 @@ export default function MigrationDetailPage() {
   if (!migration) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-sm text-zinc-500">Migration not found.</p>
+        <div className="text-center">
+          {error && (
+            <div className="mb-4 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
+              {error}
+            </div>
+          )}
+          <p className="text-sm text-zinc-500">Migration not found.</p>
+        </div>
       </div>
     );
   }
@@ -103,6 +114,12 @@ export default function MigrationDetailPage() {
             <p className="mt-1 text-sm text-zinc-400">Phase: {m.phase}</p>
           )}
         </div>
+
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
 
         {/* Progress */}
         <div className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">

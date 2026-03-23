@@ -14,6 +14,8 @@ data:
   POSTGRES_SSLMODE: {{ .Values.postgresql.sslmode | quote }}
   GITHUB_CLIENT_ID: {{ .Values.github.clientID | quote }}
   GITHUB_REDIRECT_URL: {{ .Values.github.redirectURL | quote }}
+  CORS_ALLOWED_ORIGINS: {{ .Values.cors.allowedOrigins | quote }}
+  OPERATOR_URL: {{ .Values.operatorURL | quote }}
   {{- range $key, $value := .Values.env }}
   {{ $key }}: {{ $value | quote }}
   {{- end }}

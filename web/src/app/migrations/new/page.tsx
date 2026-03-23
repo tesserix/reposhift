@@ -62,6 +62,20 @@ export default function NewMigrationPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!adoSecretName) {
+      setError("Please select an ADO credential");
+      return;
+    }
+    if (!githubSecretName) {
+      setError("Please select a GitHub credential");
+      return;
+    }
+    if (branchFilterMode && branches.length === 0) {
+      setError(`Branch filter mode is set to "${branchFilterMode}" but no branches have been added`);
+      return;
+    }
+
     setSubmitting(true);
 
     try {

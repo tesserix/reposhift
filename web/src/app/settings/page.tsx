@@ -8,6 +8,7 @@ export default function SettingsPage() {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!api.isAuthenticated()) {
@@ -20,7 +21,9 @@ export default function SettingsPage() {
         setTenant(t);
         setMembers(m || []);
       })
-      .catch(() => {})
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load settings");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -42,6 +45,12 @@ export default function SettingsPage() {
             Tenant configuration and members
           </p>
         </div>
+
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
 
         {tenant && (
           <div className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">

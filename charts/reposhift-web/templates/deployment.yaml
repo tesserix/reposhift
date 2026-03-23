@@ -15,8 +15,6 @@ spec:
         {{- include "reposhift-web.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "reposhift-web.serviceAccountName" . }}
-      securityContext:
-        runAsNonRoot: true
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -56,6 +54,7 @@ spec:
           securityContext:
             runAsNonRoot: true
             readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
           volumeMounts:
             - name: tmp
               mountPath: /tmp

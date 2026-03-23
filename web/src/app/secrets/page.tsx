@@ -81,9 +81,10 @@ export default function SecretsPage() {
       const res = await api.validateSecret(secretName);
       setValidation(res.validation);
     } catch (err) {
+      const matchedSecret = secrets.find((s) => s.name === secretName);
       setValidation({
         name: secretName,
-        secretType: "",
+        secretType: matchedSecret?.secretType ?? "",
         valid: false,
         checks: [{ check: "request", status: "failed", message: err instanceof Error ? err.message : "Validation failed" }],
       });

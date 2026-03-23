@@ -1,3 +1,6 @@
+nameOverride: ""
+fullnameOverride: ""
+
 image:
   repository: ghcr.io/tesserix/reposhift-platform
   tag: latest
@@ -24,12 +27,24 @@ postgresql:
   user: reposhift_user
   sslmode: require
 
+# Secrets — set via Helm values override or sealed secrets
+jwtSecret: ""
+encryptionKey: ""
+adminToken: ""
+postgresPassword: ""
+
 github:
   clientID: ""
   clientSecret: ""
   redirectURL: ""
 
+cors:
+  allowedOrigins: "*"
+
+operatorURL: "http://ado-git-migration:8080"
+
 serviceAccount:
+  create: true
   annotations: {}
 
 ingress:
@@ -42,5 +57,10 @@ ingress:
   #  - secretName: reposhift-tls
   #    hosts:
   #      - reposhift.example.com
+
+istio:
+  enabled: false
+  gateway: istio-system/default-gateway
+  host: reposhift.example.com
 
 env: {}
