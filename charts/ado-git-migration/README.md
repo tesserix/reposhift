@@ -24,7 +24,7 @@ kubectl create namespace ado-migration-operator
 # Create ACR secret for dev
 kubectl create secret docker-registry acr-dev-secret \
   --namespace ado-migration-operator \
-  --docker-server=acrbismuthdevtest.azurecr.io \
+  --docker-server=ghcr.io/tesserix \
   --docker-username=<acr-username> \
   --docker-password=<acr-password>
 
@@ -46,7 +46,7 @@ kubectl create namespace ado-migration-operator
 # Create ACR secret for prod
 kubectl create secret docker-registry acr-prod-secret \
   --namespace ado-migration-operator \
-  --docker-server=acrbismuthprod.azurecr.io \
+  --docker-server=ghcr.io/tesserix \
   --docker-username=<acr-username> \
   --docker-password=<acr-password>
 
@@ -61,7 +61,7 @@ helm install ado-migration ./charts/ado-git-migration \
 
 ### Development (`values-dev.yaml`)
 
-- Uses `acrbismuthdevtest.azurecr.io` registry
+- Uses `ghcr.io/tesserix` registry
 - Debug logging enabled
 - Leader election disabled (single replica)
 - Autoscaling disabled
@@ -70,7 +70,7 @@ helm install ado-migration ./charts/ado-git-migration \
 
 ### Production (`values-prod.yaml`)
 
-- Uses `acrbismuthprod.azurecr.io` registry
+- Uses `ghcr.io/tesserix` registry
 - Info-level logging
 - Leader election enabled for HA
 - Autoscaling enabled (2-10 replicas)
@@ -86,7 +86,7 @@ The following table lists the configurable parameters of the chart and their def
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `image.repository` | Image repository | `acrbismuthdevtest.azurecr.io/platform/idp/microservices/ado-to-git-migration` |
+| `image.repository` | Image repository | `ghcr.io/tesserix/reposhift` |
 | `image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `image.tag` | Image tag | `""` (defaults to chart appVersion) |
 | `imagePullSecrets` | Image pull secrets | `[]` |

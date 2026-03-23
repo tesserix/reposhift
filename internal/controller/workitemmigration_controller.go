@@ -365,10 +365,10 @@ func (r *WorkItemMigrationReconciler) validateConfiguration(ctx context.Context,
 
 	// 1. Validate GitHubProject dependency (REQUIRED)
 	// GitHub Project must be created before work item migration
-	// See: https://github.com/civica/onboarding-operator-ui/blob/main/docs/HOW_TO_CREATE_GITHUB_PROJECT.md
+	// See: https://github.com/my-org/onboarding-operator-ui/blob/main/docs/HOW_TO_CREATE_GITHUB_PROJECT.md
 	projectRef := strings.TrimSpace(workItemMigration.Spec.Target.ProjectRef)
 	if projectRef == "" {
-		return fmt.Errorf("projectRef is required for work item migration - please create a GitHub Project first using the guide at https://github.com/civica/onboarding-operator-ui/blob/main/docs/HOW_TO_CREATE_GITHUB_PROJECT.md")
+		return fmt.Errorf("projectRef is required for work item migration - please create a GitHub Project first using the guide at https://github.com/my-org/onboarding-operator-ui/blob/main/docs/HOW_TO_CREATE_GITHUB_PROJECT.md")
 	}
 
 	// Try to find GitHubProject by CR name first

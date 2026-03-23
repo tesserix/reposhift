@@ -7,7 +7,7 @@
 
 # Operator image settings
 image:
-  repository: acrbismuthdevtest.azurecr.io/platform/idp/microservices/ado-to-git-migration
+  repository: ghcr.io/tesserix/reposhift
   pullPolicy: Always
   tag: latest
 

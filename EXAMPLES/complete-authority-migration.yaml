@@ -30,7 +30,7 @@ spec:
 
   # Source: Azure DevOps Configuration
   source:
-    organization: civica-international-lg
+    organization: my-ado-org
     project: Authority
     auth:
       pat:
@@ -41,7 +41,7 @@ spec:
 
   # Target: GitHub Configuration
   target:
-    owner: civica
+    owner: my-org
     auth:
       appAuth:
         appIdRef:
@@ -127,7 +127,7 @@ metadata:
     repository: java-authority
     batch: complete-migration
 spec:
-  owner: civica
+  owner: my-org
 
   # Project name with proper formatting (special chars → spaces, capitalize first)
   projectName: "Java Authority"
@@ -137,7 +137,7 @@ spec:
   template: blank
 
   # Link to the migrated repository
-  repository: "civica/product-lg-authority-java-authority"
+  repository: "my-org/product-lg-authority-java-authority"
   autoLink: true
 
   # Authentication
@@ -195,7 +195,7 @@ metadata:
     repository: devops-external-infra-automation
     batch: complete-migration
 spec:
-  owner: civica
+  owner: my-org
 
   # Project name with proper formatting
   projectName: "Devops External Infra Automation"
@@ -204,7 +204,7 @@ spec:
   template: blank
 
   # Link to the migrated repository
-  repository: "civica/product-lg-authority-devops-external-infra-automation"
+  repository: "my-org/product-lg-authority-devops-external-infra-automation"
   autoLink: true
 
   # Authentication
@@ -254,7 +254,7 @@ metadata:
 spec:
   # Source: Azure DevOps Authority Project
   source:
-    organization: civica-international-lg
+    organization: my-ado-org
     project: Authority
     auth:
       pat:
@@ -265,7 +265,7 @@ spec:
 
   # Target: GitHub Repository
   target:
-    owner: civica
+    owner: my-org
     # Repository name only (without owner prefix) - will be validated against ongoing migrations
     # If the repository doesn't exist, it will wait for a migration to create it
     repository: product-lg-authority-java-authority  # Use the migrated repository

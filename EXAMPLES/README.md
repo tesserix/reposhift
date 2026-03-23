@@ -9,8 +9,8 @@ This directory contains comprehensive examples for migrating from Azure DevOps t
 
 1. **Repository Migration**:
    - Migrates `java-authority` and `devops-external-infra-automation` repos
-   - From: Azure DevOps (`civica-international-lg` org, `Authority` project)
-   - To: GitHub (`civica` org)
+   - From: Azure DevOps (`my-ado-org` org, `Authority` project)
+   - To: GitHub (`my-org` org)
 
 2. **GitHub Project Creation**:
    - Automatically creates GitHub Projects with proper naming

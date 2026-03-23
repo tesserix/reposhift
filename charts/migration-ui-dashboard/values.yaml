@@ -2,7 +2,7 @@
 
 # Docker image settings
 image:
-  repository: acrbismuthdevtest.azurecr.io/platform/idp/microservices/migration-ui-dashboard
+  repository: ghcr.io/tesserix/reposhift-dashboard
   pullPolicy: IfNotPresent
   tag: latest
 

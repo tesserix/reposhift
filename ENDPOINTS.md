@@ -82,8 +82,8 @@ GET /api/v1/discovery/organizations
   "organizations": [
     {
       "id": "org-id",
-      "name": "civica-international-lg",
-      "url": "https://dev.azure.com/civica-international-lg"
+      "name": "my-ado-org",
+      "url": "https://dev.azure.com/my-ado-org"
     }
   ]
 }
@@ -91,7 +91,7 @@ GET /api/v1/discovery/organizations
 
 #### Discover Projects
 ```http
-GET /api/v1/discovery/projects?organization=civica-international-lg
+GET /api/v1/discovery/projects?organization=my-ado-org
 ```
 
 **Query Parameters:**
@@ -114,7 +114,7 @@ GET /api/v1/discovery/projects?organization=civica-international-lg
 
 #### Discover Repositories
 ```http
-GET /api/v1/discovery/repositories?organization=civica&project=Authority
+GET /api/v1/discovery/repositories?organization=my-org&project=Authority
 ```
 
 **Query Parameters:**
@@ -129,7 +129,7 @@ GET /api/v1/discovery/repositories?organization=civica&project=Authority
     {
       "id": "repo-id",
       "name": "java-authority",
-      "url": "https://dev.azure.com/civica/Authority/_git/java-authority",
+      "url": "https://dev.azure.com/my-org/Authority/_git/java-authority",
       "defaultBranch": "main",
       "size": 12345678
     }
@@ -139,7 +139,7 @@ GET /api/v1/discovery/repositories?organization=civica&project=Authority
 
 #### Discover Work Items
 ```http
-GET /api/v1/discovery/workitems?organization=civica&project=Authority
+GET /api/v1/discovery/workitems?organization=my-org&project=Authority
 ```
 
 **Query Parameters:**
@@ -165,27 +165,27 @@ GET /api/v1/discovery/workitems?organization=civica&project=Authority
 
 #### Discover Pipelines
 ```http
-GET /api/v1/discovery/pipelines?organization=civica&project=Authority
+GET /api/v1/discovery/pipelines?organization=my-org&project=Authority
 ```
 
 #### Discover Builds
 ```http
-GET /api/v1/discovery/builds?organization=civica&project=Authority
+GET /api/v1/discovery/builds?organization=my-org&project=Authority
 ```
 
 #### Discover Releases
 ```http
-GET /api/v1/discovery/releases?organization=civica&project=Authority
+GET /api/v1/discovery/releases?organization=my-org&project=Authority
 ```
 
 #### Discover Teams
 ```http
-GET /api/v1/discovery/teams?organization=civica&project=Authority
+GET /api/v1/discovery/teams?organization=my-org&project=Authority
 ```
 
 #### Discover Users
 ```http
-GET /api/v1/discovery/users?organization=civica
+GET /api/v1/discovery/users?organization=my-org
 ```
 
 ### Discovery Management
@@ -218,7 +218,7 @@ POST /api/v1/discovery
 ```json
 {
   "type": "repositories",
-  "organization": "civica-international-lg",
+  "organization": "my-ado-org",
   "project": "Authority",
   "credentials": {
     "pat": "your-pat-token"
@@ -314,12 +314,12 @@ POST /api/v1/migrations
   "name": "my-migration",
   "type": "repository",
   "source": {
-    "organization": "civica-international-lg",
+    "organization": "my-ado-org",
     "project": "Authority",
     "repository": "java-authority"
   },
   "target": {
-    "owner": "civica",
+    "owner": "my-org",
     "repository": "java-authority"
   },
   "settings": {
@@ -509,12 +509,12 @@ POST /api/v1/pipelines
 {
   "name": "my-pipeline-conversion",
   "source": {
-    "organization": "civica",
+    "organization": "my-org",
     "project": "Authority",
     "pipelineId": 123
   },
   "target": {
-    "owner": "civica",
+    "owner": "my-org",
     "repository": "java-authority",
     "workflowName": "ci.yml"
   }
@@ -645,7 +645,7 @@ POST /api/v1/validation/credentials/ado
 **Request Body:**
 ```json
 {
-  "organization": "civica-international-lg",
+  "organization": "my-ado-org",
   "pat": "your-pat-token"
 }
 ```
@@ -696,7 +696,7 @@ POST /api/v1/validation/permissions/ado
 **Request Body:**
 ```json
 {
-  "organization": "civica",
+  "organization": "my-org",
   "project": "Authority",
   "pat": "your-pat",
   "requiredPermissions": [
@@ -773,7 +773,7 @@ POST /api/v1/validation/repository
 **Request Body:**
 ```json
 {
-  "owner": "civica",
+  "owner": "my-org",
   "repository": "java-authority",
   "token": "ghp_xxxxx"
 }

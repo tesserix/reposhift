@@ -22,7 +22,7 @@ spec:
   # ==============================================================================
   source:
     # Azure DevOps organization (pre-configured from Authority migration)
-    organization: civica-international-lg
+    organization: my-ado-org
 
     # Azure DevOps project (pre-configured from Authority migration)
     project: Authority
@@ -42,7 +42,7 @@ spec:
   # ==============================================================================
   target:
     # GitHub organization (pre-configured from Authority migration)
-    owner: civica
+    owner: my-org
 
     # Main application repository (reference repository from Authority migration)
     repository: product-lg-authority-java-authority
@@ -159,8 +159,8 @@ spec:
 #   - github-app-secret (app-id, installation-id, private-key)
 #
 # STEP 2: Values are pre-configured from Authority migration:
-#   - Azure DevOps: civica-international-lg/Authority
-#   - GitHub: civica/product-lg-authority-java-authority
+#   - Azure DevOps: my-ado-org/Authority
+#   - GitHub: my-org/product-lg-authority-java-authority
 #   - Authentication: Uses existing secrets (azure-ado-pat, github-app-secret)
 #
 #   ✅ NO EDITING REQUIRED - Ready to apply as-is!

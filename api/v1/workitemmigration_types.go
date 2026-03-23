@@ -54,7 +54,7 @@ type WorkItemTarget struct {
 	//   - GitHubProject CR name (e.g., "java-authority-project")
 	//   - Actual GitHub Project name (e.g., "Java Authority")
 	// The operator will search by CR name first, then by project name
-	// See: https://github.com/civica/onboarding-operator-ui/blob/main/docs/HOW_TO_CREATE_GITHUB_PROJECT.md
+	// See: https://github.com/my-org/onboarding-operator-ui/blob/main/docs/HOW_TO_CREATE_GITHUB_PROJECT.md
 	ProjectRef string `json:"projectRef"`
 
 	// Authentication configuration

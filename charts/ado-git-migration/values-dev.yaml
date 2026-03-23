@@ -2,7 +2,7 @@
 # Use with: helm install -f values.yaml -f values-dev.yaml
 
 image:
-  repository: acrbismuthdevtest.azurecr.io/platform/idp/backend/ado-git-migration
+  repository: ghcr.io/tesserix/reposhift
   pullPolicy: Always
   tag: latest
   # Tag will be set by CI/CD pipeline or manually

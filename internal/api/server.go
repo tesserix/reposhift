@@ -194,19 +194,26 @@ func (s *Server) ginMetricsMiddleware() gin.HandlerFunc {
 func (s *Server) SetupRoutes() http.Handler {
 	r := gin.New()
 
-	// Configure CORS using go-common middleware
-	// Using specific origins (like applications-hub-service) to allow credentials
-	corsConfig := CORSConfig{
-		AllowedOrigins: []string{
-			"https://hub.civica.tech",
-			"https://dev.hub.civica.tech",
-			"https://ado-git-migration-api.hub.civica.tech",
-			"https://ado-git-migration-dev.hub.civica.tech",
+	// Configure CORS — reads allowed origins from CORS_ALLOWED_ORIGINS env var
+	// Defaults to common local development origins if not set
+	corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	var allowedOrigins []string
+	if corsOrigins != "" {
+		for _, o := range strings.Split(corsOrigins, ",") {
+			if trimmed := strings.TrimSpace(o); trimmed != "" {
+				allowedOrigins = append(allowedOrigins, trimmed)
+			}
+		}
+	} else {
+		allowedOrigins = []string{
 			"http://localhost:3000",
 			"http://localhost:3001",
-			"http://localhost:8080",
 			"http://localhost:3005",
-		},
+			"http://localhost:8080",
+		}
+	}
+	corsConfig := CORSConfig{
+		AllowedOrigins: allowedOrigins,
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowedHeaders: []string{
 			"Origin",

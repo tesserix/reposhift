@@ -2,7 +2,7 @@
 # Use with: helm install -f values.yaml -f values-prod.yaml
 
 image:
-  repository: acrbismuthprod.azurecr.io/platform/idp/backend/ado-git-migration
+  repository: ghcr.io/tesserix/reposhift
   pullPolicy: Always
   # Tag will be set by CI/CD pipeline
 

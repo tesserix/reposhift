@@ -113,7 +113,7 @@ Each claim will fetch its own referenced secret independently.
 
 ```bash
 # PAT for Civica International
-kubectl create secret generic civica-international-pat \
+kubectl create secret generic my-org-international-pat \
   --from-literal=token='YOUR_CIVICA_INTERNATIONAL_PAT' \
   -n ado-migration-operator
 
@@ -130,26 +130,26 @@ kubectl create secret generic third-org-credentials \
 
 ### Step 2: Create Claims Referencing Different Secrets
 
-**Claim 1: civica-international-migration.yaml**
+**Claim 1: my-org-international-migration.yaml**
 
 ```yaml
 apiVersion: migration.ado-to-git-migration.io/v1
 kind: AdoToGitMigration
 metadata:
-  name: civica-international-migration
+  name: my-org-international-migration
   namespace: ado-migration-operator
 spec:
   source:
-    organization: civica-international-lg
+    organization: my-ado-org
     project: Authority
     auth:
       pat:
         tokenRef:
-          name: civica-international-pat  # ← References first secret
+          name: my-org-international-pat  # ← References first secret
           key: token
           namespace: ado-migration-operator
   target:
-    organization: civica
+    organization: my-org
     auth:
       appAuth:
         # ... GitHub App config
@@ -222,7 +222,7 @@ spec:
 ### Step 3: Apply All Claims Simultaneously
 
 ```bash
-kubectl apply -f civica-international-migration.yaml
+kubectl apply -f my-org-international-migration.yaml
 kubectl apply -f another-org-migration.yaml
 kubectl apply -f third-org-pipeline-conversion.yaml
 ```

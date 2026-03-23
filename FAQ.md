@@ -205,7 +205,7 @@ namingConvention:
 ```yaml
 template: "{{.Organization}}-{{.Project}}-{{.SourceName}}"
 ```
-Result: `civica-platform-team-my-repo`
+Result: `my-org-platform-team-my-repo`
 
 ### Can I change letter casing?
 

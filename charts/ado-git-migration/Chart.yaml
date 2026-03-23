@@ -12,7 +12,7 @@ keywords:
   - operator
 maintainers:
   - name: Platform Team
-    email: platform-team@civica.com
+    email: samyak.rout@gmail.com
 home: https://github.com/Civica-Digital/global-platform-hub
 sources:
   - https://github.com/Civica-Digital/global-platform-hub/tree/main/micro-services/ado-to-git-migration

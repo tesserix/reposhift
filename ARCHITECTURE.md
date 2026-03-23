@@ -82,10 +82,10 @@ metadata:
   name: my-migration
 spec:
   azureDevOps:
-    organization: civica
+    organization: my-org
     project: Platform-Team
   github:
-    owner: civica
+    owner: my-org
   discovery:
     repositories:
       enabled: true
@@ -293,12 +293,12 @@ func (r *BatchMigrationReconciler) Reconcile(ctx, req) {
 ```
 1. Read Config
    ↓
-   Read: azureDevOps.organization = "civica"
+   Read: azureDevOps.organization = "my-org"
    Read: azureDevOps.project = "Platform-Team"
    ↓
 2. Connect to ADO
    ↓
-   API Call: GET /civica/Platform-Team/_apis/git/repositories
+   API Call: GET /my-org/Platform-Team/_apis/git/repositories
    ↓
 3. Get Response
    ↓
@@ -596,15 +596,15 @@ Worker needs to migrate repo "java-authority"
 
 4. Check if repo exists
    API: GitHub REST API
-   Call: GET /repos/civica/product-lg-authority-java-authority
+   Call: GET /repos/my-org/product-lg-authority-java-authority
 
 5. Create repo if doesn't exist
    API: GitHub REST API
-   Call: POST /orgs/civica/repos
+   Call: POST /orgs/my-org/repos
 
 6. Push to GitHub
    API: GitHub Git API
-   Call: git push https://github.com/civica/product-lg-authority-java-authority
+   Call: git push https://github.com/my-org/product-lg-authority-java-authority
 
 7. Update status
    API: Kubernetes API
