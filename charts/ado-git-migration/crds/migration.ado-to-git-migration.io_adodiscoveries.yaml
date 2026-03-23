@@ -1,0 +1,1110 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: adodiscoveries.migration.ado-to-git-migration.io
+spec:
+  group: migration.ado-to-git-migration.io
+  names:
+    kind: AdoDiscovery
+    listKind: AdoDiscoveryList
+    plural: adodiscoveries
+    singular: adodiscovery
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.progress.percentage
+      name: Progress
+      type: string
+    - jsonPath: .status.progress.itemsDiscovered
+      name: Items
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: AdoDiscovery is the Schema for the adodiscoveries API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AdoDiscoverySpec defines the desired state of AdoDiscovery
+            properties:
+              filters:
+                description: Discovery filters
+                properties:
+                  dateRange:
+                    description: Date range for work items and builds
+                    properties:
+                      end:
+                        description: End date
+                        format: date-time
+                        type: string
+                      start:
+                        description: Start date
+                        format: date-time
+                        type: string
+                    type: object
+                  includeArchived:
+                    description: Include archived items
+                    type: boolean
+                  includeDisabled:
+                    description: Include disabled items
+                    type: boolean
+                  pipelineTypes:
+                    description: Pipeline types to include
+                    items:
+                      type: string
+                    type: array
+                  projectPatterns:
+                    description: Project name patterns
+                    items:
+                      type: string
+                    type: array
+                  repositoryPatterns:
+                    description: Repository name patterns
+                    items:
+                      type: string
+                    type: array
+                  workItemTypes:
+                    description: Work item types to include
+                    items:
+                      type: string
+                    type: array
+                type: object
+              scope:
+                description: Discovery scope
+                properties:
+                  builds:
+                    description: Include builds
+                    type: boolean
+                  organizations:
+                    description: Include organizations
+                    type: boolean
+                  pipelines:
+                    description: Include pipelines
+                    type: boolean
+                  projects:
+                    description: Include projects
+                    type: boolean
+                  releases:
+                    description: Include releases
+                    type: boolean
+                  repositories:
+                    description: Include repositories
+                    type: boolean
+                  teams:
+                    description: Include teams
+                    type: boolean
+                  users:
+                    description: Include users
+                    type: boolean
+                  workItems:
+                    description: Include work items
+                    type: boolean
+                type: object
+              settings:
+                description: Discovery settings
+                properties:
+                  cacheDurationMinutes:
+                    description: Cache duration in minutes
+                    maximum: 1440
+                    minimum: 1
+                    type: integer
+                  cacheResults:
+                    description: Cache results
+                    type: boolean
+                  maxItems:
+                    description: Maximum items to discover per type
+                    maximum: 10000
+                    minimum: 1
+                    type: integer
+                  parallelWorkers:
+                    description: Parallel discovery workers
+                    maximum: 10
+                    minimum: 1
+                    type: integer
+                  timeoutMinutes:
+                    description: Discovery timeout in minutes
+                    maximum: 60
+                    minimum: 1
+                    type: integer
+                type: object
+              source:
+                description: Azure DevOps configuration
+                properties:
+                  apiUrl:
+                    description: API URL (optional, defaults to https://dev.azure.com)
+                    type: string
+                  auth:
+                    description: Authentication configuration
+                    properties:
+                      pat:
+                        description: Personal Access Token configuration
+                        properties:
+                          tokenRef:
+                            description: Token reference
+                            properties:
+                              key:
+                                description: Key within the secret
+                                type: string
+                              name:
+                                description: Name of the secret
+                                type: string
+                              namespace:
+                                description: Namespace of the secret (optional, defaults
+                                  to same namespace)
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - tokenRef
+                        type: object
+                      servicePrincipal:
+                        description: Service Principal configuration
+                        properties:
+                          clientIdRef:
+                            description: Client ID reference
+                            properties:
+                              key:
+                                description: Key within the secret
+                                type: string
+                              name:
+                                description: Name of the secret
+                                type: string
+                              namespace:
+                                description: Namespace of the secret (optional, defaults
+                                  to same namespace)
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                          clientSecretRef:
+                            description: Client secret reference
+                            properties:
+                              key:
+                                description: Key within the secret
+                                type: string
+                              name:
+                                description: Name of the secret
+                                type: string
+                              namespace:
+                                description: Namespace of the secret (optional, defaults
+                                  to same namespace)
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                          tenantIdRef:
+                            description: Tenant ID reference
+                            properties:
+                              key:
+                                description: Key within the secret
+                                type: string
+                              name:
+                                description: Name of the secret
+                                type: string
+                              namespace:
+                                description: Namespace of the secret (optional, defaults
+                                  to same namespace)
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - clientIdRef
+                        - clientSecretRef
+                        - tenantIdRef
+                        type: object
+                    type: object
+                  businessUnit:
+                    description: |-
+                      Business unit name for repository naming (e.g., "lg", "ea", "hb")
+                      Used in auto-generated GitHub repo names
+                    type: string
+                  isProductRepo:
+                    description: |-
+                      Whether this is a product repository (deprecated, use migrationType instead)
+                      If true, repo will be named: product-<repo_name>
+                      If false, repo will be named: <bu_name>-<repo_name>
+                    type: boolean
+                  migrationType:
+                    description: |-
+                      Migration type determines the naming convention for GitHub repos
+                      - product: generates names like "product-<bu>-<product>-<repo>"
+                      - platform: generates names like "platform-<bu>-<repo>"
+                      - shared: generates names like "shared-<repo>"
+                    enum:
+                    - product
+                    - platform
+                    - shared
+                    type: string
+                  organization:
+                    description: Organization name
+                    minLength: 1
+                    type: string
+                  productName:
+                    description: |-
+                      Product name for product repositories (e.g., "altitude", "authority")
+                      Used in auto-generated GitHub repo names for product migrations
+                    type: string
+                  project:
+                    description: Project name
+                    minLength: 1
+                    type: string
+                  repository:
+                    description: Repository name (optional, can be inferred from resource)
+                    type: string
+                required:
+                - auth
+                - organization
+                - project
+                type: object
+            required:
+            - scope
+            - source
+            type: object
+          status:
+            description: AdoDiscoveryStatus defines the observed state of AdoDiscovery
+            properties:
+              cacheInfo:
+                description: Cache information
+                properties:
+                  expiry:
+                    description: Cache expiry
+                    format: date-time
+                    type: string
+                  hit:
+                    description: Cache hit
+                    type: boolean
+                  key:
+                    description: Cache key
+                    type: string
+                  timestamp:
+                    description: Cache timestamp
+                    format: date-time
+                    type: string
+                required:
+                - expiry
+                - hit
+                - key
+                - timestamp
+                type: object
+              completionTime:
+                description: Completion time
+                format: date-time
+                type: string
+              conditions:
+                description: Conditions represent the latest available observations
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              discoveredResources:
+                description: Discovered resources
+                properties:
+                  builds:
+                    description: Builds
+                    items:
+                      description: Build represents an Azure DevOps build
+                      properties:
+                        buildNumber:
+                          description: Build number
+                          type: string
+                        finishTime:
+                          description: Finish time
+                          format: date-time
+                          type: string
+                        id:
+                          description: ID of the build
+                          type: integer
+                        pipelineId:
+                          description: Pipeline ID
+                          type: integer
+                        pipelineName:
+                          description: Pipeline name
+                          type: string
+                        projectId:
+                          description: Project ID
+                          type: string
+                        projectName:
+                          description: Project name
+                          type: string
+                        queueTime:
+                          description: Queue time
+                          format: date-time
+                          type: string
+                        requestedBy:
+                          description: Requested by
+                          type: string
+                        requestedFor:
+                          description: Requested for
+                          type: string
+                        result:
+                          description: Result (succeeded, partiallySucceeded, failed,
+                            canceled)
+                          type: string
+                        sourceBranch:
+                          description: Source branch
+                          type: string
+                        sourceVersion:
+                          description: Source version
+                          type: string
+                        startTime:
+                          description: Start time
+                          format: date-time
+                          type: string
+                        status:
+                          description: Status (inProgress, completed, cancelling,
+                            postponed, notStarted, all)
+                          type: string
+                        url:
+                          description: URL
+                          type: string
+                      required:
+                      - buildNumber
+                      - id
+                      - pipelineId
+                      - pipelineName
+                      - projectId
+                      - projectName
+                      - queueTime
+                      - status
+                      - url
+                      type: object
+                    type: array
+                  organizations:
+                    description: Organizations
+                    items:
+                      description: Organization represents an Azure DevOps organization
+                      properties:
+                        createdDate:
+                          description: Created date
+                          format: date-time
+                          type: string
+                        description:
+                          description: Description
+                          type: string
+                        id:
+                          description: ID of the organization
+                          type: string
+                        lastModifiedDate:
+                          description: Last modified date
+                          format: date-time
+                          type: string
+                        name:
+                          description: Name of the organization
+                          type: string
+                        owner:
+                          description: Owner
+                          type: string
+                        region:
+                          description: Region
+                          type: string
+                        url:
+                          description: URL of the organization
+                          type: string
+                      required:
+                      - id
+                      - name
+                      - url
+                      type: object
+                    type: array
+                  pipelines:
+                    description: Pipelines
+                    items:
+                      description: Pipeline represents an Azure DevOps pipeline
+                      properties:
+                        createdDate:
+                          description: Created date
+                          format: date-time
+                          type: string
+                        folder:
+                          description: Folder path
+                          type: string
+                        id:
+                          description: ID of the pipeline
+                          type: integer
+                        name:
+                          description: Name of the pipeline
+                          type: string
+                        projectId:
+                          description: Project ID
+                          type: string
+                        projectName:
+                          description: Project name
+                          type: string
+                        quality:
+                          description: Quality (definition, draft)
+                          type: string
+                        queueStatus:
+                          description: Queue status
+                          type: string
+                        repository:
+                          description: Repository
+                          properties:
+                            branchCount:
+                              description: Branch count
+                              type: integer
+                            defaultBranch:
+                              description: Default branch
+                              type: string
+                            id:
+                              description: ID of the repository
+                              type: string
+                            isDisabled:
+                              description: Is disabled
+                              type: boolean
+                            isEmpty:
+                              description: Is empty
+                              type: boolean
+                            lastCommit:
+                              description: Last commit
+                              properties:
+                                author:
+                                  description: Author
+                                  type: string
+                                comment:
+                                  description: Comment
+                                  type: string
+                                committer:
+                                  description: Committer
+                                  type: string
+                                date:
+                                  description: Date
+                                  format: date-time
+                                  type: string
+                                id:
+                                  description: Commit ID
+                                  type: string
+                                url:
+                                  description: URL
+                                  type: string
+                              required:
+                              - author
+                              - comment
+                              - committer
+                              - date
+                              - id
+                              - url
+                              type: object
+                            name:
+                              description: Name of the repository
+                              type: string
+                            projectId:
+                              description: Project ID
+                              type: string
+                            projectName:
+                              description: Project name
+                              type: string
+                            pullRequestCount:
+                              description: Pull request count
+                              type: integer
+                            remoteUrl:
+                              description: Remote URL
+                              type: string
+                            size:
+                              description: Size in bytes
+                              format: int64
+                              type: integer
+                            sshUrl:
+                              description: SSH URL
+                              type: string
+                            tagCount:
+                              description: Tag count
+                              type: integer
+                            url:
+                              description: URL of the repository
+                              type: string
+                            webUrl:
+                              description: Web URL
+                              type: string
+                          required:
+                          - branchCount
+                          - defaultBranch
+                          - id
+                          - isDisabled
+                          - isEmpty
+                          - name
+                          - projectId
+                          - projectName
+                          - pullRequestCount
+                          - remoteUrl
+                          - size
+                          - sshUrl
+                          - tagCount
+                          - url
+                          - webUrl
+                          type: object
+                        revision:
+                          description: Revision
+                          type: integer
+                        type:
+                          description: Type (build, release)
+                          type: string
+                        url:
+                          description: URL
+                          type: string
+                        variables:
+                          description: Variables
+                          items:
+                            description: PipelineVariable represents a pipeline variable
+                            properties:
+                              allowOverride:
+                                description: Allow override
+                                type: boolean
+                              isSecret:
+                                description: Is secret
+                                type: boolean
+                              name:
+                                description: Variable name
+                                type: string
+                              value:
+                                description: Variable value
+                                type: string
+                            required:
+                            - name
+                            - value
+                            type: object
+                          type: array
+                      required:
+                      - createdDate
+                      - id
+                      - name
+                      - projectId
+                      - projectName
+                      - quality
+                      - queueStatus
+                      - revision
+                      - type
+                      - url
+                      type: object
+                    type: array
+                  projects:
+                    description: Projects
+                    items:
+                      description: Project represents an Azure DevOps project
+                      properties:
+                        capabilities:
+                          description: Capabilities
+                          properties:
+                            processTemplate:
+                              description: Process template capabilities
+                              properties:
+                                isDefault:
+                                  description: Is default template
+                                  type: boolean
+                                templateName:
+                                  description: Template name
+                                  type: string
+                                templateTypeId:
+                                  description: Template type ID
+                                  type: string
+                              type: object
+                            versioncontrol:
+                              description: Version control capabilities
+                              properties:
+                                gitEnabled:
+                                  description: Git enabled
+                                  type: boolean
+                                sourceControlType:
+                                  description: Source control type (Git, TFVC)
+                                  type: string
+                                tfvcEnabled:
+                                  description: TFVC enabled
+                                  type: boolean
+                              type: object
+                          type: object
+                        description:
+                          description: Description
+                          type: string
+                        id:
+                          description: ID of the project
+                          type: string
+                        lastUpdateTime:
+                          description: Last update time
+                          format: date-time
+                          type: string
+                        name:
+                          description: Name of the project
+                          type: string
+                        revision:
+                          description: Revision
+                          format: int64
+                          type: integer
+                        state:
+                          description: State (wellFormed, createPending, deleting,
+                            new, all)
+                          type: string
+                        url:
+                          description: URL of the project
+                          type: string
+                        visibility:
+                          description: Visibility (private, public)
+                          type: string
+                      required:
+                      - id
+                      - name
+                      - revision
+                      - state
+                      - url
+                      - visibility
+                      type: object
+                    type: array
+                  releases:
+                    description: Releases
+                    items:
+                      description: Release represents an Azure DevOps release
+                      properties:
+                        createdBy:
+                          description: Created by
+                          type: string
+                        createdOn:
+                          description: Created on
+                          format: date-time
+                          type: string
+                        description:
+                          description: Description
+                          type: string
+                        environments:
+                          description: Environments
+                          items:
+                            description: ReleaseEnvironment represents a release environment
+                            properties:
+                              createdOn:
+                                description: Created on
+                                format: date-time
+                                type: string
+                              id:
+                                description: ID of the environment
+                                type: integer
+                              modifiedOn:
+                                description: Modified on
+                                format: date-time
+                                type: string
+                              name:
+                                description: Name of the environment
+                                type: string
+                              rank:
+                                description: Rank
+                                type: integer
+                              status:
+                                description: Status
+                                type: string
+                            required:
+                            - id
+                            - name
+                            - rank
+                            - status
+                            type: object
+                          type: array
+                        id:
+                          description: ID of the release
+                          type: integer
+                        modifiedBy:
+                          description: Modified by
+                          type: string
+                        modifiedOn:
+                          description: Modified on
+                          format: date-time
+                          type: string
+                        name:
+                          description: Name of the release
+                          type: string
+                        projectId:
+                          description: Project ID
+                          type: string
+                        projectName:
+                          description: Project name
+                          type: string
+                        releaseDefinitionId:
+                          description: Release definition ID
+                          type: integer
+                        releaseDefinitionName:
+                          description: Release definition name
+                          type: string
+                        status:
+                          description: Status (draft, active, abandoned)
+                          type: string
+                        url:
+                          description: URL
+                          type: string
+                      required:
+                      - createdOn
+                      - id
+                      - name
+                      - projectId
+                      - projectName
+                      - releaseDefinitionId
+                      - releaseDefinitionName
+                      - status
+                      - url
+                      type: object
+                    type: array
+                  repositories:
+                    description: Repositories
+                    items:
+                      description: Repository represents an Azure DevOps repository
+                      properties:
+                        branchCount:
+                          description: Branch count
+                          type: integer
+                        defaultBranch:
+                          description: Default branch
+                          type: string
+                        id:
+                          description: ID of the repository
+                          type: string
+                        isDisabled:
+                          description: Is disabled
+                          type: boolean
+                        isEmpty:
+                          description: Is empty
+                          type: boolean
+                        lastCommit:
+                          description: Last commit
+                          properties:
+                            author:
+                              description: Author
+                              type: string
+                            comment:
+                              description: Comment
+                              type: string
+                            committer:
+                              description: Committer
+                              type: string
+                            date:
+                              description: Date
+                              format: date-time
+                              type: string
+                            id:
+                              description: Commit ID
+                              type: string
+                            url:
+                              description: URL
+                              type: string
+                          required:
+                          - author
+                          - comment
+                          - committer
+                          - date
+                          - id
+                          - url
+                          type: object
+                        name:
+                          description: Name of the repository
+                          type: string
+                        projectId:
+                          description: Project ID
+                          type: string
+                        projectName:
+                          description: Project name
+                          type: string
+                        pullRequestCount:
+                          description: Pull request count
+                          type: integer
+                        remoteUrl:
+                          description: Remote URL
+                          type: string
+                        size:
+                          description: Size in bytes
+                          format: int64
+                          type: integer
+                        sshUrl:
+                          description: SSH URL
+                          type: string
+                        tagCount:
+                          description: Tag count
+                          type: integer
+                        url:
+                          description: URL of the repository
+                          type: string
+                        webUrl:
+                          description: Web URL
+                          type: string
+                      required:
+                      - branchCount
+                      - defaultBranch
+                      - id
+                      - isDisabled
+                      - isEmpty
+                      - name
+                      - projectId
+                      - projectName
+                      - pullRequestCount
+                      - remoteUrl
+                      - size
+                      - sshUrl
+                      - tagCount
+                      - url
+                      - webUrl
+                      type: object
+                    type: array
+                  teams:
+                    description: Teams
+                    items:
+                      description: Team represents an Azure DevOps team
+                      properties:
+                        description:
+                          description: Description
+                          type: string
+                        id:
+                          description: ID of the team
+                          type: string
+                        identityUrl:
+                          description: Identity URL
+                          type: string
+                        name:
+                          description: Name of the team
+                          type: string
+                        projectId:
+                          description: Project ID
+                          type: string
+                        projectName:
+                          description: Project name
+                          type: string
+                        url:
+                          description: URL
+                          type: string
+                      required:
+                      - id
+                      - name
+                      - projectId
+                      - projectName
+                      - url
+                      type: object
+                    type: array
+                  users:
+                    description: Users
+                    items:
+                      description: User represents an Azure DevOps user
+                      properties:
+                        descriptor:
+                          description: Descriptor
+                          type: string
+                        displayName:
+                          description: Display name
+                          type: string
+                        id:
+                          description: ID of the user
+                          type: string
+                        imageUrl:
+                          description: Image URL
+                          type: string
+                        uniqueName:
+                          description: Unique name
+                          type: string
+                        url:
+                          description: URL
+                          type: string
+                      required:
+                      - displayName
+                      - id
+                      - uniqueName
+                      - url
+                      type: object
+                    type: array
+                  workItems:
+                    description: Work items
+                    items:
+                      description: WorkItem represents an Azure DevOps work item
+                      properties:
+                        areaPath:
+                          description: Area path
+                          type: string
+                        assignedTo:
+                          description: Assigned to
+                          type: string
+                        changedDate:
+                          description: Changed date
+                          format: date-time
+                          type: string
+                        createdDate:
+                          description: Created date
+                          format: date-time
+                          type: string
+                        id:
+                          description: ID of the work item
+                          type: integer
+                        iterationPath:
+                          description: Iteration path
+                          type: string
+                        priority:
+                          description: Priority
+                          type: string
+                        projectId:
+                          description: Project ID
+                          type: string
+                        projectName:
+                          description: Project name
+                          type: string
+                        severity:
+                          description: Severity
+                          type: string
+                        state:
+                          description: State
+                          type: string
+                        tags:
+                          description: Tags
+                          items:
+                            type: string
+                          type: array
+                        title:
+                          description: Title
+                          type: string
+                        type:
+                          description: Type of the work item
+                          type: string
+                        url:
+                          description: URL
+                          type: string
+                      required:
+                      - changedDate
+                      - createdDate
+                      - id
+                      - projectId
+                      - projectName
+                      - state
+                      - title
+                      - type
+                      - url
+                      type: object
+                    type: array
+                type: object
+              errorMessage:
+                description: Error message
+                type: string
+              phase:
+                description: Phase of the discovery
+                enum:
+                - Pending
+                - Running
+                - Completed
+                - Failed
+                - Cancelled
+                type: string
+              progress:
+                description: Discovery progress
+                properties:
+                  currentOperation:
+                    description: Current operation
+                    type: string
+                  currentStep:
+                    description: Current step
+                    type: string
+                  itemsDiscovered:
+                    description: Items discovered
+                    type: integer
+                  percentage:
+                    description: Percentage complete
+                    type: integer
+                  stepsCompleted:
+                    description: Steps completed
+                    type: integer
+                  totalSteps:
+                    description: Total steps
+                    type: integer
+                required:
+                - currentStep
+                - itemsDiscovered
+                - percentage
+                - stepsCompleted
+                - totalSteps
+                type: object
+              startTime:
+                description: Start time
+                format: date-time
+                type: string
+              warnings:
+                description: Warnings
+                items:
+                  type: string
+                type: array
+            required:
+            - discoveredResources
+            - phase
+            - progress
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

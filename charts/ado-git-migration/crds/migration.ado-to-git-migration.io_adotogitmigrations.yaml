@@ -1,0 +1,1044 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: adotogitmigrations.migration.ado-to-git-migration.io
+spec:
+  group: migration.ado-to-git-migration.io
+  names:
+    kind: AdoToGitMigration
+    listKind: AdoToGitMigrationList
+    plural: adotogitmigrations
+    singular: adotogitmigration
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.progress.progressSummary
+      name: Progress
+      type: string
+    - jsonPath: .spec.type
+      name: Type
+      type: string
+    - jsonPath: .status.progress.completed
+      name: Completed
+      type: integer
+    - jsonPath: .status.progress.failed
+      name: Failed
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: AdoToGitMigration is the Schema for the adotogitmigrations API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AdoToGitMigrationSpec defines the desired state of AdoToGitMigration
+            properties:
+              resources:
+                description: Resources to migrate
+                items:
+                  description: MigrationResource defines a resource to migrate
+                  properties:
+                    config:
+                      additionalProperties:
+                        type: string
+                      description: Additional configuration
+                      type: object
+                    settings:
+                      description: Resource-specific settings
+                      properties:
+                        pipeline:
+                          description: Pipeline-specific settings
+                          properties:
+                            convertToActions:
+                              description: Convert to GitHub Actions
+                              type: boolean
+                            workflowTemplate:
+                              description: Workflow template
+                              type: string
+                          type: object
+                        repository:
+                          description: Repository-specific settings
+                          properties:
+                            branchMapping:
+                              additionalProperties:
+                                type: string
+                              description: Branch mapping
+                              type: object
+                            createIfNotExists:
+                              description: Create repository if it doesn't exist
+                              type: boolean
+                            excludeBranches:
+                              description: Exclude specific branches
+                              items:
+                                type: string
+                              type: array
+                            includeBranches:
+                              description: Include specific branches
+                              items:
+                                type: string
+                              type: array
+                            visibility:
+                              description: Repository visibility (public, private,
+                                internal)
+                              enum:
+                              - public
+                              - private
+                              - internal
+                              type: string
+                          type: object
+                        workItem:
+                          description: Work item-specific settings
+                          properties:
+                            fieldMapping:
+                              additionalProperties:
+                                type: string
+                              description: Field mapping
+                              type: object
+                            stateMapping:
+                              additionalProperties:
+                                type: string
+                              description: State mapping
+                              type: object
+                            typeMapping:
+                              additionalProperties:
+                                type: string
+                              description: Work item type mapping
+                              type: object
+                          type: object
+                      type: object
+                    sourceId:
+                      description: Source identifier in Azure DevOps
+                      type: string
+                    sourceName:
+                      description: Source name
+                      type: string
+                    targetName:
+                      description: Target name in GitHub
+                      type: string
+                    type:
+                      description: Type of resource (repository, work-item, build,
+                        release)
+                      enum:
+                      - repository
+                      - work-item
+                      - build
+                      - release
+                      - pipeline
+                      type: string
+                  required:
+                  - sourceId
+                  - sourceName
+                  - targetName
+                  - type
+                  type: object
+                type: array
+              settings:
+                description: Migration settings
+                properties:
+                  batchDelayMinutes:
+                    default: 30
+                    description: |-
+                      Delay in minutes between batch repository migrations (default: 30)
+                      This applies when migrating multiple repositories sequentially
+                    maximum: 1440
+                    minimum: 0
+                    type: integer
+                  batchSize:
+                    description: Batch size for processing
+                    maximum: 1000
+                    minimum: 1
+                    type: integer
+                  cloneDepth:
+                    default: 0
+                    description: |-
+                      Clone depth for shallow cloning (0 = full history, N>0 = shallow with N commits)
+                      Shallow cloning significantly reduces clone time and disk usage for large repositories.
+                      When set, branches and tags are still fetched but commit history is truncated.
+                    minimum: 0
+                    type: integer
+                  handleLFS:
+                    description: Handle LFS files
+                    type: boolean
+                  includeBuilds:
+                    description: Include builds/releases migration
+                    type: boolean
+                  includePullRequests:
+                    description: Include pull requests
+                    type: boolean
+                  includeTags:
+                    description: Include tags
+                    type: boolean
+                  includeWorkItems:
+                    description: Include work items migration
+                    type: boolean
+                  maxCommitCount:
+                    description: 'Maximum commit count (default: 2000)'
+                    maximum: 50000
+                    minimum: 1
+                    type: integer
+                  maxHistoryDays:
+                    default: 730
+                    description: 'Maximum commit history days (default: 730 for 2
+                      years)'
+                    maximum: 3650
+                    minimum: 1
+                    type: integer
+                  parallelWorkers:
+                    description: Parallel workers
+                    maximum: 20
+                    minimum: 1
+                    type: integer
+                  rateLimit:
+                    description: Rate limiting settings
+                    properties:
+                      adoRequestsPerMinute:
+                        description: Requests per minute for Azure DevOps
+                        type: integer
+                      githubRequestsPerMinute:
+                        description: Requests per minute for GitHub
+                        type: integer
+                    type: object
+                  repository:
+                    description: |-
+                      Repository-specific settings (branch filtering, etc.)
+                      These apply globally to all repositories in the migration
+                    properties:
+                      branchMapping:
+                        additionalProperties:
+                          type: string
+                        description: Branch mapping
+                        type: object
+                      createIfNotExists:
+                        description: Create repository if it doesn't exist
+                        type: boolean
+                      excludeBranches:
+                        description: Exclude specific branches
+                        items:
+                          type: string
+                        type: array
+                      includeBranches:
+                        description: Include specific branches
+                        items:
+                          type: string
+                        type: array
+                      visibility:
+                        description: Repository visibility (public, private, internal)
+                        enum:
+                        - public
+                        - private
+                        - internal
+                        type: string
+                    type: object
+                  retryAttempts:
+                    description: Retry attempts
+                    maximum: 10
+                    minimum: 0
+                    type: integer
+                  sync:
+                    description: Continuous sync settings
+                    properties:
+                      branchFilter:
+                        description: Sync specific branches only (if empty, sync all
+                          branches)
+                        items:
+                          type: string
+                        type: array
+                      enabled:
+                        description: |-
+                          Enable continuous synchronization
+                          When enabled, the operator will periodically sync changes from ADO to GitHub
+                        type: boolean
+                      forcePush:
+                        description: Force push (use with caution, may overwrite GitHub
+                          changes)
+                        type: boolean
+                      intervalMinutes:
+                        description: 'Sync interval in minutes (default: 5, min: 1,
+                          max: 1440 for 24 hours)'
+                        maximum: 1440
+                        minimum: 1
+                        type: integer
+                      syncTags:
+                        description: Sync tags
+                        type: boolean
+                    type: object
+                type: object
+              source:
+                description: Source Azure DevOps configuration
+                properties:
+                  apiUrl:
+                    description: API URL (optional, defaults to https://dev.azure.com)
+                    type: string
+                  auth:
+                    description: Authentication configuration
+                    properties:
+                      pat:
+                        description: Personal Access Token configuration
+                        properties:
+                          tokenRef:
+                            description: Token reference
+                            properties:
+                              key:
+                                description: Key within the secret
+                                type: string
+                              name:
+                                description: Name of the secret
+                                type: string
+                              namespace:
+                                description: Namespace of the secret (optional, defaults
+                                  to same namespace)
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - tokenRef
+                        type: object
+                      servicePrincipal:
+                        description: Service Principal configuration
+                        properties:
+                          clientIdRef:
+                            description: Client ID reference
+                            properties:
+                              key:
+                                description: Key within the secret
+                                type: string
+                              name:
+                                description: Name of the secret
+                                type: string
+                              namespace:
+                                description: Namespace of the secret (optional, defaults
+                                  to same namespace)
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                          clientSecretRef:
+                            description: Client secret reference
+                            properties:
+                              key:
+                                description: Key within the secret
+                                type: string
+                              name:
+                                description: Name of the secret
+                                type: string
+                              namespace:
+                                description: Namespace of the secret (optional, defaults
+                                  to same namespace)
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                          tenantIdRef:
+                            description: Tenant ID reference
+                            properties:
+                              key:
+                                description: Key within the secret
+                                type: string
+                              name:
+                                description: Name of the secret
+                                type: string
+                              namespace:
+                                description: Namespace of the secret (optional, defaults
+                                  to same namespace)
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - clientIdRef
+                        - clientSecretRef
+                        - tenantIdRef
+                        type: object
+                    type: object
+                  businessUnit:
+                    description: |-
+                      Business unit name for repository naming (e.g., "lg", "ea", "hb")
+                      Used in auto-generated GitHub repo names
+                    type: string
+                  isProductRepo:
+                    description: |-
+                      Whether this is a product repository (deprecated, use migrationType instead)
+                      If true, repo will be named: product-<repo_name>
+                      If false, repo will be named: <bu_name>-<repo_name>
+                    type: boolean
+                  migrationType:
+                    description: |-
+                      Migration type determines the naming convention for GitHub repos
+                      - product: generates names like "product-<bu>-<product>-<repo>"
+                      - platform: generates names like "platform-<bu>-<repo>"
+                      - shared: generates names like "shared-<repo>"
+                    enum:
+                    - product
+                    - platform
+                    - shared
+                    type: string
+                  organization:
+                    description: Organization name
+                    minLength: 1
+                    type: string
+                  productName:
+                    description: |-
+                      Product name for product repositories (e.g., "altitude", "authority")
+                      Used in auto-generated GitHub repo names for product migrations
+                    type: string
+                  project:
+                    description: Project name
+                    minLength: 1
+                    type: string
+                  repository:
+                    description: Repository name (optional, can be inferred from resource)
+                    type: string
+                required:
+                - auth
+                - organization
+                - project
+                type: object
+              target:
+                description: Target GitHub configuration
+                properties:
+                  apiUrl:
+                    description: API URL (optional, defaults to https://api.github.com)
+                    type: string
+                  auth:
+                    description: Authentication configuration
+                    properties:
+                      appAuth:
+                        description: GitHub App authentication (Option B - Recommended
+                          for production)
+                        properties:
+                          appIdRef:
+                            description: App ID reference
+                            properties:
+                              key:
+                                description: Key within the secret
+                                type: string
+                              name:
+                                description: Name of the secret
+                                type: string
+                              namespace:
+                                description: Namespace of the secret (optional, defaults
+                                  to same namespace)
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                          installationIdRef:
+                            description: Installation ID reference
+                            properties:
+                              key:
+                                description: Key within the secret
+                                type: string
+                              name:
+                                description: Name of the secret
+                                type: string
+                              namespace:
+                                description: Namespace of the secret (optional, defaults
+                                  to same namespace)
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                          privateKeyRef:
+                            description: Private Key reference (PEM format)
+                            properties:
+                              key:
+                                description: Key within the secret
+                                type: string
+                              name:
+                                description: Name of the secret
+                                type: string
+                              namespace:
+                                description: Namespace of the secret (optional, defaults
+                                  to same namespace)
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                        required:
+                        - appIdRef
+                        - installationIdRef
+                        - privateKeyRef
+                        type: object
+                      token:
+                        description: |-
+                          Inline OAuth/PAT token (Option C - for OAuth flow from UI)
+                          This token is passed directly from the frontend and used temporarily
+                        type: string
+                      tokenRef:
+                        description: Personal Access Token reference (Option A)
+                        properties:
+                          key:
+                            description: Key within the secret
+                            type: string
+                          name:
+                            description: Name of the secret
+                            type: string
+                          namespace:
+                            description: Namespace of the secret (optional, defaults
+                              to same namespace)
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
+                    type: object
+                  autoGenerateName:
+                    description: |-
+                      Auto-generate repository name based on source metadata
+                      If true: uses isProductRepo and businessUnit from source to generate name
+                      If false: uses repository name as-is or from source
+                    type: boolean
+                  defaultBranch:
+                    description: |-
+                      Default branch name for target repositories
+                      If not specified, will be auto-detected from source repository
+                    type: string
+                  defaultRepoSettings:
+                    description: Default repository settings
+                    properties:
+                      autoInit:
+                        description: Auto-initialize repository
+                        type: boolean
+                      gitignoreTemplate:
+                        description: Gitignore template
+                        type: string
+                      licenseTemplate:
+                        description: License template
+                        type: string
+                      visibility:
+                        description: Repository visibility (public, private, internal)
+                        enum:
+                        - public
+                        - private
+                        - internal
+                        type: string
+                    type: object
+                  owner:
+                    description: Owner (organization or user)
+                    minLength: 1
+                    type: string
+                  repository:
+                    description: Repository name (optional, will be auto-generated
+                      based on naming rules if not specified)
+                    type: string
+                  visibility:
+                    description: Repository visibility (public, private, internal)
+                    enum:
+                    - public
+                    - private
+                    - internal
+                    type: string
+                required:
+                - auth
+                - owner
+                type: object
+              type:
+                description: Migration type (repository, workitems, pipelines, all)
+                enum:
+                - repository
+                - workitems
+                - pipelines
+                - all
+                type: string
+              validationRules:
+                description: Validation rules
+                properties:
+                  preMigrationChecks:
+                    description: Pre-migration checks
+                    items:
+                      type: string
+                    type: array
+                  requiredPermissions:
+                    description: Required permissions
+                    items:
+                      type: string
+                    type: array
+                  skipValidation:
+                    description: Skip validation
+                    type: boolean
+                type: object
+            required:
+            - resources
+            - settings
+            - source
+            - target
+            - type
+            type: object
+          status:
+            description: AdoToGitMigrationStatus defines the observed state of AdoToGitMigration
+            properties:
+              completionTime:
+                description: Completion time
+                format: date-time
+                type: string
+              conditions:
+                description: Conditions represent the latest available observations
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              defaultBranchInfo:
+                description: Default branch information
+                properties:
+                  autoDetected:
+                    description: Whether default branch was auto-detected or explicitly
+                      configured
+                    type: boolean
+                  detectedAt:
+                    description: Detection timestamp
+                    format: date-time
+                    type: string
+                  sourceDefaultBranch:
+                    description: Source default branch (detected from ADO)
+                    type: string
+                  targetDefaultBranch:
+                    description: Target default branch (configured or auto-detected)
+                    type: string
+                type: object
+              errorMessage:
+                description: Error messages
+                type: string
+              lastReconcileTime:
+                description: Last reconcile time
+                format: date-time
+                type: string
+              observedGeneration:
+                description: Reconcile generation
+                format: int64
+                type: integer
+              phase:
+                description: Phase of the migration
+                enum:
+                - Pending
+                - Validating
+                - Running
+                - Completed
+                - Failed
+                - Cancelled
+                - Paused
+                - Syncing
+                type: string
+              progress:
+                description: Progress tracking
+                properties:
+                  completed:
+                    description: Completed resources
+                    type: integer
+                  currentItem:
+                    description: Current item being processed (1-indexed) - shows
+                      which item is currently being migrated
+                    type: integer
+                  currentStep:
+                    description: Current step
+                    type: string
+                  estimatedCompletion:
+                    description: Estimated completion time
+                    format: date-time
+                    type: string
+                  failed:
+                    description: Failed resources
+                    type: integer
+                  percentage:
+                    description: Percentage complete
+                    type: integer
+                  processing:
+                    description: Currently processing
+                    type: integer
+                  processingRate:
+                    description: Processing rate (items per minute) as string
+                    type: string
+                  progressSummary:
+                    description: Progress summary in "X/Y" format (e.g., "1/2", "2/5")
+                      for better visibility
+                    type: string
+                  skipped:
+                    description: Skipped resources
+                    type: integer
+                  total:
+                    description: Total resources to migrate
+                    type: integer
+                required:
+                - completed
+                - failed
+                - percentage
+                - processing
+                - skipped
+                - total
+                type: object
+              repositoryStates:
+                description: Repository state information
+                items:
+                  description: RepositoryStateInfo contains repository state information
+                  properties:
+                    checkedAt:
+                      description: State check timestamp
+                      format: date-time
+                      type: string
+                    createdDuringMigration:
+                      description: Whether repository was created during migration
+                      type: boolean
+                    details:
+                      description: Additional details about the repository state
+                      type: string
+                    githubUrl:
+                      description: GitHub repository URL if exists
+                      type: string
+                    repositoryName:
+                      description: Repository name
+                      type: string
+                    state:
+                      description: Current state of the repository
+                      enum:
+                      - NotExists
+                      - Empty
+                      - NonEmpty
+                      - Created
+                      type: string
+                  required:
+                  - repositoryName
+                  - state
+                  type: object
+                type: array
+              resourceStatuses:
+                description: Resource migration statuses
+                items:
+                  description: ResourceMigrationStatus tracks individual resource
+                    migration
+                  properties:
+                    completionTime:
+                      description: Completion time
+                      format: date-time
+                      type: string
+                    details:
+                      description: Migration details
+                      properties:
+                        bytesTransferred:
+                          description: Bytes transferred
+                          format: int64
+                          type: integer
+                        currentOperation:
+                          description: Current operation
+                          type: string
+                        itemsProcessed:
+                          description: Items processed
+                          type: integer
+                        subResources:
+                          description: Sub-resources
+                          items:
+                            description: SubResourceStatus tracks sub-resource migration
+                              status
+                            properties:
+                              errorMessage:
+                                description: Error message if failed
+                                type: string
+                              name:
+                                description: Name of the sub-resource
+                                type: string
+                              progress:
+                                description: Progress percentage
+                                type: integer
+                              status:
+                                description: Status
+                                type: string
+                              type:
+                                description: Type of the sub-resource
+                                type: string
+                            required:
+                            - name
+                            - progress
+                            - status
+                            - type
+                            type: object
+                          type: array
+                        totalItems:
+                          description: Total items
+                          type: integer
+                      type: object
+                    error:
+                      type: string
+                    errorMessage:
+                      description: Error message if failed
+                      type: string
+                    githubUrl:
+                      description: GitHub URL if successful
+                      type: string
+                    name:
+                      description: Backward compatibility fields
+                      type: string
+                    progress:
+                      description: Progress percentage
+                      type: integer
+                    repositoryUrl:
+                      type: string
+                    resourceId:
+                      description: Resource identifier
+                      type: string
+                    sourceName:
+                      description: Source name
+                      type: string
+                    startTime:
+                      description: Start time
+                      format: date-time
+                      type: string
+                    status:
+                      description: Status
+                      type: string
+                    targetName:
+                      description: Target name
+                      type: string
+                    type:
+                      description: Resource type
+                      type: string
+                  required:
+                  - progress
+                  - resourceId
+                  - sourceName
+                  - status
+                  - targetName
+                  - type
+                  type: object
+                type: array
+              startTime:
+                description: Start time
+                format: date-time
+                type: string
+              statistics:
+                description: Migration statistics
+                properties:
+                  apiCalls:
+                    additionalProperties:
+                      type: integer
+                    description: API calls made
+                    type: object
+                  branchesMigrated:
+                    description: Total branches migrated
+                    type: integer
+                  commitsMigrated:
+                    description: Total commits migrated
+                    type: integer
+                  dataTransferred:
+                    description: Total data transferred (bytes)
+                    format: int64
+                    type: integer
+                  duration:
+                    description: Total duration
+                    type: string
+                  pipelinesMigrated:
+                    description: Total pipelines migrated
+                    type: integer
+                  pullRequestsMigrated:
+                    description: Total pull requests migrated
+                    type: integer
+                  repositoriesCreated:
+                    description: Total repositories created
+                    type: integer
+                  tagsMigrated:
+                    description: Total tags migrated
+                    type: integer
+                  workItemsMigrated:
+                    description: Total work items migrated
+                    type: integer
+                type: object
+              syncStatus:
+                description: Sync status (for continuous sync)
+                properties:
+                  branchesSynced:
+                    description: Branches synced in last sync
+                    items:
+                      type: string
+                    type: array
+                  enabled:
+                    description: Whether sync is currently enabled
+                    type: boolean
+                  failedSyncCount:
+                    description: Number of failed syncs
+                    type: integer
+                  lastSyncError:
+                    description: Last sync error (if any)
+                    type: string
+                  lastSyncTime:
+                    description: Last successful sync time
+                    format: date-time
+                    type: string
+                  nextSyncTime:
+                    description: Next sync scheduled time
+                    format: date-time
+                    type: string
+                  syncCount:
+                    description: Number of successful syncs
+                    type: integer
+                  tagsSynced:
+                    description: Tags synced in last sync
+                    items:
+                      type: string
+                    type: array
+                required:
+                - enabled
+                - failedSyncCount
+                - syncCount
+                type: object
+              validationResults:
+                description: Validation results
+                properties:
+                  errors:
+                    description: Validation errors
+                    items:
+                      description: ValidationError represents a validation error
+                      properties:
+                        code:
+                          description: Error code
+                          type: string
+                        field:
+                          description: Field that caused the error
+                          type: string
+                        message:
+                          description: Error message
+                          type: string
+                        resolution:
+                          description: Resolution suggestion
+                          type: string
+                        resource:
+                          description: Resource that caused the error
+                          type: string
+                        severity:
+                          description: Severity level
+                          type: string
+                      required:
+                      - code
+                      - message
+                      type: object
+                    type: array
+                  timestamp:
+                    description: Validation timestamp
+                    format: date-time
+                    type: string
+                  valid:
+                    description: Overall validation status
+                    type: boolean
+                  warnings:
+                    description: Validation warnings
+                    items:
+                      description: ValidationWarning represents a validation warning
+                      properties:
+                        code:
+                          description: Warning code
+                          type: string
+                        field:
+                          description: Field that caused the warning
+                          type: string
+                        message:
+                          description: Warning message
+                          type: string
+                        resource:
+                          description: Resource that caused the warning
+                          type: string
+                        suggestion:
+                          description: Suggestion for resolution
+                          type: string
+                      required:
+                      - code
+                      - message
+                      type: object
+                    type: array
+                required:
+                - timestamp
+                - valid
+                type: object
+              warnings:
+                description: Warnings
+                items:
+                  type: string
+                type: array
+            required:
+            - phase
+            - progress
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

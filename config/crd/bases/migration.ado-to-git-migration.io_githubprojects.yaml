@@ -1,0 +1,360 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: githubprojects.migration.ado-to-git-migration.io
+spec:
+  group: migration.ado-to-git-migration.io
+  names:
+    kind: GitHubProject
+    listKind: GitHubProjectList
+    plural: githubprojects
+    shortNames:
+    - ghproject
+    - ghproj
+    singular: githubproject
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.owner
+      name: Owner
+      type: string
+    - jsonPath: .spec.projectName
+      name: Project
+      type: string
+    - jsonPath: .spec.template
+      name: Template
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.projectId
+      name: Project ID
+      type: string
+    - jsonPath: .status.projectUrl
+      name: URL
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: GitHubProject is the Schema for the githubprojects API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: GitHubProjectSpec defines the desired state of GitHubProject
+            properties:
+              auth:
+                description: Auth contains the GitHub authentication configuration
+                properties:
+                  appAuth:
+                    description: GitHub App authentication (Option B - Recommended
+                      for production)
+                    properties:
+                      appIdRef:
+                        description: App ID reference
+                        properties:
+                          key:
+                            description: Key within the secret
+                            type: string
+                          name:
+                            description: Name of the secret
+                            type: string
+                          namespace:
+                            description: Namespace of the secret (optional, defaults
+                              to same namespace)
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
+                      installationIdRef:
+                        description: Installation ID reference
+                        properties:
+                          key:
+                            description: Key within the secret
+                            type: string
+                          name:
+                            description: Name of the secret
+                            type: string
+                          namespace:
+                            description: Namespace of the secret (optional, defaults
+                              to same namespace)
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
+                      privateKeyRef:
+                        description: Private Key reference (PEM format)
+                        properties:
+                          key:
+                            description: Key within the secret
+                            type: string
+                          name:
+                            description: Name of the secret
+                            type: string
+                          namespace:
+                            description: Namespace of the secret (optional, defaults
+                              to same namespace)
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
+                    required:
+                    - appIdRef
+                    - installationIdRef
+                    - privateKeyRef
+                    type: object
+                  token:
+                    description: |-
+                      Inline OAuth/PAT token (Option C - for OAuth flow from UI)
+                      This token is passed directly from the frontend and used temporarily
+                    type: string
+                  tokenRef:
+                    description: Personal Access Token reference (Option A)
+                    properties:
+                      key:
+                        description: Key within the secret
+                        type: string
+                      name:
+                        description: Name of the secret
+                        type: string
+                      namespace:
+                        description: Namespace of the secret (optional, defaults to
+                          same namespace)
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                type: object
+              autoLink:
+                default: true
+                description: |-
+                  AutoLink automatically links issues from the repository to this project
+                  Only works if Repository is specified
+                type: boolean
+              description:
+                description: Description is the optional description for the project
+                type: string
+              owner:
+                description: Owner is the GitHub organization or user that owns the
+                  project
+                minLength: 1
+                type: string
+              projectName:
+                description: ProjectName is the name of the GitHub project to create
+                maxLength: 255
+                minLength: 1
+                type: string
+              public:
+                default: true
+                description: Public determines if the project is public or private
+                type: boolean
+              repository:
+                description: |-
+                  Repository optionally links the project to a specific repository
+                  Format: "owner/repo"
+                type: string
+              statusField:
+                description: |-
+                  StatusField defines custom status field configuration for the project
+                  If not specified, the template default status columns will be used
+                  Note: "Status" is a reserved field name in GitHub Projects. Use names like
+                  "ADO Status", "Work Item Status", or "Issue Status" instead.
+                properties:
+                  name:
+                    default: ADO Status
+                    description: |-
+                      Name is the name of the status field
+                      Note: "Status" is reserved by GitHub. Use "ADO Status", "Work Item Status", etc.
+                    type: string
+                  options:
+                    description: Options is the list of status options/columns in
+                      order
+                    items:
+                      description: StatusOption defines a single status option
+                      properties:
+                        color:
+                          description: |-
+                            Color is the color for this status (optional)
+                            Valid values: gray, blue, green, yellow, orange, red, pink, purple
+                          enum:
+                          - gray
+                          - blue
+                          - green
+                          - yellow
+                          - orange
+                          - red
+                          - pink
+                          - purple
+                          type: string
+                        description:
+                          description: Description is an optional description for
+                            this status
+                          type: string
+                        name:
+                          description: Name is the display name of the status option
+                          maxLength: 100
+                          minLength: 1
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    maxItems: 20
+                    minItems: 1
+                    type: array
+                required:
+                - options
+                type: object
+              template:
+                default: blank
+                description: |-
+                  Template specifies which GitHub Project template to use
+                  Options: team-planning, kanban, feature-release, bug-tracker, iterative-development,
+                  product-launch, roadmap, team-retrospective, board, blank
+                  If not specified, defaults to "blank" to allow custom status field configuration
+                enum:
+                - team-planning
+                - kanban
+                - feature-release
+                - bug-tracker
+                - iterative-development
+                - product-launch
+                - roadmap
+                - team-retrospective
+                - board
+                - blank
+                type: string
+            required:
+            - auth
+            - owner
+            - projectName
+            type: object
+          status:
+            description: GitHubProjectStatus defines the observed state of GitHubProject
+            properties:
+              conditions:
+                description: Conditions represent the latest available observations
+                  of the project's state
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              createdAt:
+                description: CreatedAt is the timestamp when the project was created
+                format: date-time
+                type: string
+              errorMessage:
+                description: ErrorMessage contains error details if the project creation
+                  failed
+                type: string
+              lastUpdatedAt:
+                description: LastUpdatedAt is the timestamp of the last status update
+                format: date-time
+                type: string
+              message:
+                description: Message provides additional information about the project
+                  status
+                type: string
+              observedGeneration:
+                description: ObservedGeneration reflects the generation of the most
+                  recently observed spec
+                format: int64
+                type: integer
+              phase:
+                description: Phase represents the current phase of the project creation
+                enum:
+                - Pending
+                - Creating
+                - Ready
+                - Failed
+                type: string
+              projectId:
+                description: ProjectID is the GitHub Project ID (node ID)
+                type: string
+              projectNumber:
+                description: ProjectNumber is the GitHub Project number
+                type: integer
+              projectUrl:
+                description: ProjectURL is the URL to the created GitHub Project
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

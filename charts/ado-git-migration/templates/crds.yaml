@@ -1,7 +1,17 @@
 {{- if .Values.crds.install }}
-{{ .Files.Get "crds/adotogitmigrations.yaml" }}
+{{ .Files.Get "crds/migration.ado-to-git-migration.io_adotogitmigrations.yaml" }}
 ---
-{{ .Files.Get "crds/adodiscoveries.yaml" }}
+{{ .Files.Get "crds/migration.ado-to-git-migration.io_adodiscoveries.yaml" }}
 ---
-{{ .Files.Get "crds/pipelinetoworkflows.yaml" }}
+{{ .Files.Get "crds/migration.ado-to-git-migration.io_workitemmigrations.yaml" }}
+---
+{{ .Files.Get "crds/migration.ado-to-git-migration.io_pipelinetoworkflows.yaml" }}
+---
+{{ .Files.Get "crds/migration.ado-to-git-migration.io_githubprojects.yaml" }}
+---
+{{ .Files.Get "crds/migration.ado-to-git-migration.io_monorepomigrations.yaml" }}
+---
+{{ .Files.Get "crds/migration.ado-to-git-migration.io_batchmigrations.yaml" }}
+---
+{{ .Files.Get "crds/migration.ado-to-git-migration.io_migrationjobs.yaml" }}
 {{- end }}
