@@ -2,24 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [main, 'feat/**', 'feature/**', 'bugfix/**', 'hotfix/**']
-    paths:
-      - '**/*.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'Dockerfile'
-      - '.github/workflows/ci.yml'
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: reposhift
   GCP_PROJECT_ID: tesseracthub-480811
   GKE_CLUSTER: tesseract-prod-in-gke
   GKE_REGION: asia-south1
@@ -30,90 +23,72 @@ permissions:
   security-events: write
 
 jobs:
-  build-and-push:
+  # --- Go tests (shared for operator + platform) ---
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Run tests
+      - name: Run Go tests
         run: |
-          go vet ./...
-          go test ./... -v -count=1 -timeout 5m
-        env:
-          GOPRIVATE: github.com/tesserix/*
+          go vet ./internal/platform/... ./internal/services/...
+          go test ./internal/platform/... ./internal/services/... -v -count=1 -timeout 5m
 
-      - name: Authenticate to GCP (GKE deploy)
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: projects/849928263410/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-          service_account: github-actions@tesseracthub-480811.iam.gserviceaccount.com
-
-      - name: Log in to GitHub Container Registry
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+  # --- Operator image ---
+  operator:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        id: meta
+      - name: Build and push operator
         run: |
-          SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
-          echo "tags=${{ env.REGISTRY }}/tesserix/${{ env.IMAGE_NAME }}:${SHA_SHORT},${{ env.REGISTRY }}/tesserix/${{ env.IMAGE_NAME }}:latest" >> "$GITHUB_OUTPUT"
+          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          docker build -t ${{ env.REGISTRY }}/tesserix/reposhift:${SHA} -t ${{ env.REGISTRY }}/tesserix/reposhift:latest -f Dockerfile .
+          docker push ${{ env.REGISTRY }}/tesserix/reposhift:${SHA}
+          docker push ${{ env.REGISTRY }}/tesserix/reposhift:latest
 
-      - name: Build and push
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+  # --- Platform API image ---
+  platform:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push platform
         run: |
-          IFS=',' read -ra TAGS <<< "${{ steps.meta.outputs.tags }}"
-          TAG_ARGS=""
-          for tag in "${TAGS[@]}"; do
-            TAG_ARGS="$TAG_ARGS -t $tag"
-          done
-          docker build $TAG_ARGS \
-            --build-arg GOPRIVATE=github.com/tesserix/* \
-            .
-          for tag in "${TAGS[@]}"; do
-            docker push "$tag"
-          done
+          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          docker build -t ${{ env.REGISTRY }}/tesserix/reposhift-platform:${SHA} -t ${{ env.REGISTRY }}/tesserix/reposhift-platform:latest -f Dockerfile.platform .
+          docker push ${{ env.REGISTRY }}/tesserix/reposhift-platform:${SHA}
+          docker push ${{ env.REGISTRY }}/tesserix/reposhift-platform:latest
 
-      - name: Get GKE credentials
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: google-github-actions/get-gke-credentials@v2
+  # --- Web frontend image ---
+  web:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
         with:
-          cluster_name: ${{ env.GKE_CLUSTER }}
-          location: ${{ env.GKE_REGION }}
-
-      - name: Restart Knative service
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        continue-on-error: true
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push web
         run: |
-          kubectl patch ksvc reposhift -n marketplace \
-            --type merge \
-            -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"client.knative.dev/updateTimestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}}}}" \
-            2>/dev/null || echo "Knative service not yet deployed — skipping"
-
-      - name: Security scan
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        continue-on-error: true
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: '${{ env.REGISTRY }}/tesserix/${{ env.IMAGE_NAME }}:latest'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Upload scan results
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-results.sarif'
+          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          docker build -t ${{ env.REGISTRY }}/tesserix/reposhift-web:${SHA} -t ${{ env.REGISTRY }}/tesserix/reposhift-web:latest -f web/Dockerfile web/
+          docker push ${{ env.REGISTRY }}/tesserix/reposhift-web:${SHA}
+          docker push ${{ env.REGISTRY }}/tesserix/reposhift-web:latest

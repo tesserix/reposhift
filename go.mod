@@ -7,7 +7,6 @@ toolchain go1.26.0
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
-	github.com/civica/global-platform-hub/packages/go-common v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-git/go-git/v5 v5.17.0
 	github.com/go-logr/logr v1.4.3
@@ -131,5 +130,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2-0.20260122202528-d9cc6641c482 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-replace github.com/civica/global-platform-hub/packages/go-common => ../../packages/go-common

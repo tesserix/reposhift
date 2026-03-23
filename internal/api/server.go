@@ -23,7 +23,6 @@ import (
 
 	"github.com/tesserix/reposhift/internal/services"
 	wsmanager "github.com/tesserix/reposhift/internal/websocket"
-	"github.com/civica/global-platform-hub/packages/go-common/middleware"
 )
 
 // Prometheus metrics
@@ -197,7 +196,7 @@ func (s *Server) SetupRoutes() http.Handler {
 
 	// Configure CORS using go-common middleware
 	// Using specific origins (like applications-hub-service) to allow credentials
-	corsConfig := middleware.CORSConfig{
+	corsConfig := CORSConfig{
 		AllowedOrigins: []string{
 			"https://hub.civica.tech",
 			"https://dev.hub.civica.tech",
@@ -236,7 +235,7 @@ func (s *Server) SetupRoutes() http.Handler {
 	}
 
 	// Apply global middleware (CORS must be first)
-	r.Use(middleware.CORS(corsConfig))
+	r.Use(CORS(corsConfig))
 	r.Use(gin.Recovery())
 	r.Use(s.ginMetricsMiddleware())
 
