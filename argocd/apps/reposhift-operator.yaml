@@ -4,7 +4,7 @@ metadata:
   name: reposhift-operator
   namespace: argocd
 spec:
-  project: default
+  project: github-migrator
   source:
     repoURL: https://github.com/tesserix/reposhift.git
     path: charts/ado-git-migration

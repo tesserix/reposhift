@@ -4,7 +4,7 @@ metadata:
   name: reposhift-platform
   namespace: argocd
 spec:
-  project: default
+  project: github-migrator
   source:
     repoURL: https://github.com/tesserix/reposhift.git
     path: charts/reposhift-platform
