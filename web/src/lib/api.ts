@@ -78,18 +78,35 @@ export const api = {
 
   // Secrets
   listSecrets() {
-    return request<Secret[]>("/secrets");
+    return request<{ secrets: Secret[] }>("/secrets");
   },
 
-  createSecret(name: string, type: string, data: string) {
-    return request<Secret>("/secrets", {
+  getSecret(name: string) {
+    return request<{ secret: Secret }>(`/secrets/${name}`);
+  },
+
+  createSecret(name: string, secretType: string, data: Record<string, string>) {
+    return request<{ message: string; name: string }>("/secrets", {
       method: "POST",
-      body: JSON.stringify({ name, type, data }),
+      body: JSON.stringify({ name, secretType, data }),
     });
   },
 
-  deleteSecret(id: string) {
-    return request<void>(`/secrets/${id}`, { method: "DELETE" });
+  updateSecret(name: string, secretType: string, data: Record<string, string>) {
+    return request<{ message: string; name: string }>(`/secrets/${name}`, {
+      method: "PUT",
+      body: JSON.stringify({ name, secretType, data }),
+    });
+  },
+
+  deleteSecret(name: string) {
+    return request<void>(`/secrets/${name}`, { method: "DELETE" });
+  },
+
+  validateSecret(name: string) {
+    return request<{ validation: SecretValidation }>(`/secrets/${name}/validate`, {
+      method: "POST",
+    });
   },
 
   // Migrations
@@ -157,8 +174,23 @@ export interface Member {
 export interface Secret {
   id: string;
   name: string;
-  type: string;
+  secretType: string;
+  metadata?: Record<string, string>;
   created_at: string;
+  updated_at: string;
+}
+
+export interface SecretValidation {
+  name: string;
+  secretType: string;
+  valid: boolean;
+  checks: SecretValidationCheck[];
+}
+
+export interface SecretValidationCheck {
+  check: string;
+  status: "passed" | "failed" | "warning" | "skipped";
+  message: string;
 }
 
 export interface Migration {

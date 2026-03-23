@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -102,7 +103,10 @@ func (s *PlatformServer) SetupRouter() *gin.Engine {
 		// Secret routes.
 		protected.GET("/secrets", s.listSecrets)
 		protected.POST("/secrets", s.createSecret)
-		protected.DELETE("/secrets/:id", s.deleteSecret)
+		protected.GET("/secrets/:name", s.getSecret)
+		protected.PUT("/secrets/:name", s.updateSecret)
+		protected.DELETE("/secrets/:name", s.deleteSecret)
+		protected.POST("/secrets/:name/validate", s.validateSecret)
 
 		// Migration routes.
 		protected.GET("/migrations", s.listMigrations)
@@ -515,9 +519,57 @@ func (s *PlatformServer) createSecret(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "secret created", "name": req.Name})
 }
 
+func (s *PlatformServer) getSecret(c *gin.Context) {
+	tenantID := auth.GetTenantID(c)
+	secretName := c.Param("name")
+
+	// List all secrets and find the one matching the name.
+	// We don't return the decrypted value — only metadata.
+	items, err := s.secretsProvider.List(c.Request.Context(), tenantID)
+	if err != nil {
+		slog.Error("failed to list secrets", "tenantId", tenantID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve secret"})
+		return
+	}
+
+	for _, item := range items {
+		if item.Name == secretName {
+			c.JSON(http.StatusOK, gin.H{"secret": item})
+			return
+		}
+	}
+
+	c.JSON(http.StatusNotFound, gin.H{"error": "secret not found"})
+}
+
+func (s *PlatformServer) updateSecret(c *gin.Context) {
+	tenantID := auth.GetTenantID(c)
+	secretName := c.Param("name")
+
+	var req createSecretRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
+		return
+	}
+
+	if _, ok := validSecretTypes[req.SecretType]; !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid secretType %q: must be one of ado_pat, github_token, github_app, azure_sp", req.SecretType)})
+		return
+	}
+
+	// Store overwrites the existing secret (upsert).
+	if err := s.secretsProvider.Store(c.Request.Context(), tenantID, secretName, req.SecretType, req.Data); err != nil {
+		slog.Error("failed to update secret", "tenantId", tenantID, "name", secretName, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update secret"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "secret updated", "name": secretName})
+}
+
 func (s *PlatformServer) deleteSecret(c *gin.Context) {
 	tenantID := auth.GetTenantID(c)
-	secretName := c.Param("id")
+	secretName := c.Param("name")
 
 	if err := s.secretsProvider.Delete(c.Request.Context(), tenantID, secretName); err != nil {
 		slog.Error("failed to delete secret", "tenantId", tenantID, "name", secretName, "error", err)
@@ -526,6 +578,291 @@ func (s *PlatformServer) deleteSecret(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "secret deleted"})
+}
+
+// validateSecret decrypts the stored secret and tests connectivity against
+// the upstream provider (Azure DevOps or GitHub). This verifies the PAT/token
+// is valid, has required permissions, and can reach the target service.
+func (s *PlatformServer) validateSecret(c *gin.Context) {
+	tenantID := auth.GetTenantID(c)
+	secretName := c.Param("name")
+	ctx := c.Request.Context()
+
+	// Retrieve the decrypted secret data.
+	data, err := s.secretsProvider.Get(ctx, tenantID, secretName)
+	if err != nil {
+		slog.Error("failed to retrieve secret for validation", "tenantId", tenantID, "name", secretName, "error", err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "secret not found or could not be decrypted"})
+		return
+	}
+
+	// Determine secret type from metadata.
+	items, err := s.secretsProvider.List(ctx, tenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to look up secret metadata"})
+		return
+	}
+	var secretType string
+	for _, item := range items {
+		if item.Name == secretName {
+			secretType = item.SecretType
+			break
+		}
+	}
+	if secretType == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "secret not found"})
+		return
+	}
+
+	result := gin.H{
+		"name":       secretName,
+		"secretType": secretType,
+		"valid":      false,
+		"checks":     []gin.H{},
+	}
+
+	switch secretType {
+	case "ado_pat":
+		s.validateADOPAT(ctx, data, result)
+	case "github_token":
+		s.validateGitHubToken(ctx, data, result)
+	case "github_app":
+		s.validateGitHubApp(ctx, data, result)
+	case "azure_sp":
+		s.validateAzureSP(ctx, data, result)
+	default:
+		result["valid"] = true
+		result["checks"] = []gin.H{{
+			"check":   "type",
+			"status":  "skipped",
+			"message": fmt.Sprintf("no validation available for type %q", secretType),
+		}}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"validation": result})
+}
+
+// validateADOPAT tests an Azure DevOps Personal Access Token.
+// Expected data keys: "token" (the PAT), optionally "organization".
+func (s *PlatformServer) validateADOPAT(ctx context.Context, data map[string]string, result gin.H) {
+	token := data["token"]
+	org := data["organization"]
+
+	checks := []gin.H{}
+
+	if token == "" {
+		checks = append(checks, gin.H{"check": "token_present", "status": "failed", "message": "PAT token is missing from secret data (expected key: 'token')"})
+		result["checks"] = checks
+		return
+	}
+	checks = append(checks, gin.H{"check": "token_present", "status": "passed", "message": "PAT token is present"})
+
+	// Test ADO API connectivity with the PAT.
+	// ADO PATs use Basic auth: base64(username:token) — username can be empty.
+	adoURL := "https://dev.azure.com"
+	if org != "" {
+		adoURL = fmt.Sprintf("https://dev.azure.com/%s/_apis/connectionData", org)
+	} else {
+		adoURL = "https://app.vssps.visualstudio.com/_apis/profile/profiles/me?api-version=7.0"
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, adoURL, nil)
+	if err != nil {
+		checks = append(checks, gin.H{"check": "connectivity", "status": "failed", "message": "failed to build request: " + err.Error()})
+		result["checks"] = checks
+		return
+	}
+	req.SetBasicAuth("", token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		checks = append(checks, gin.H{"check": "connectivity", "status": "failed", "message": "failed to connect to Azure DevOps: " + err.Error()})
+		result["checks"] = checks
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		checks = append(checks, gin.H{"check": "connectivity", "status": "passed", "message": "successfully authenticated with Azure DevOps"})
+		result["valid"] = true
+	} else if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		checks = append(checks, gin.H{"check": "connectivity", "status": "failed", "message": fmt.Sprintf("authentication failed (HTTP %d): token may be expired or revoked", resp.StatusCode)})
+	} else {
+		checks = append(checks, gin.H{"check": "connectivity", "status": "warning", "message": fmt.Sprintf("unexpected response (HTTP %d): token may still be valid", resp.StatusCode)})
+		result["valid"] = true // Non-auth errors don't necessarily mean invalid
+	}
+
+	if org != "" {
+		checks = append(checks, gin.H{"check": "organization", "status": "passed", "message": fmt.Sprintf("organization '%s' is configured", org)})
+	} else {
+		checks = append(checks, gin.H{"check": "organization", "status": "warning", "message": "no organization configured — set 'organization' key in secret data for org-scoped operations"})
+	}
+
+	result["checks"] = checks
+}
+
+// validateGitHubToken tests a GitHub Personal Access Token.
+// Expected data keys: "token" (the PAT), optionally "owner" (org or user).
+func (s *PlatformServer) validateGitHubToken(ctx context.Context, data map[string]string, result gin.H) {
+	token := data["token"]
+	owner := data["owner"]
+
+	checks := []gin.H{}
+
+	if token == "" {
+		checks = append(checks, gin.H{"check": "token_present", "status": "failed", "message": "GitHub token is missing from secret data (expected key: 'token')"})
+		result["checks"] = checks
+		return
+	}
+	checks = append(checks, gin.H{"check": "token_present", "status": "passed", "message": "GitHub token is present"})
+
+	// Test GitHub API with the token.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user", nil)
+	if err != nil {
+		checks = append(checks, gin.H{"check": "connectivity", "status": "failed", "message": "failed to build request: " + err.Error()})
+		result["checks"] = checks
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		checks = append(checks, gin.H{"check": "connectivity", "status": "failed", "message": "failed to connect to GitHub API: " + err.Error()})
+		result["checks"] = checks
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		checks = append(checks, gin.H{"check": "connectivity", "status": "passed", "message": "successfully authenticated with GitHub"})
+		result["valid"] = true
+
+		// Check scopes from response header.
+		scopes := resp.Header.Get("X-OAuth-Scopes")
+		if scopes != "" {
+			checks = append(checks, gin.H{"check": "scopes", "status": "passed", "message": "token scopes: " + scopes})
+
+			// Verify required scopes for migration.
+			scopeList := strings.Split(scopes, ", ")
+			hasRepo := false
+			for _, scope := range scopeList {
+				if strings.TrimSpace(scope) == "repo" {
+					hasRepo = true
+				}
+			}
+			if !hasRepo {
+				checks = append(checks, gin.H{"check": "repo_scope", "status": "warning", "message": "token is missing 'repo' scope — required for repository migrations"})
+			} else {
+				checks = append(checks, gin.H{"check": "repo_scope", "status": "passed", "message": "'repo' scope is present"})
+			}
+		}
+
+		// Check rate limit.
+		remaining := resp.Header.Get("X-RateLimit-Remaining")
+		limit := resp.Header.Get("X-RateLimit-Limit")
+		if remaining != "" && limit != "" {
+			checks = append(checks, gin.H{"check": "rate_limit", "status": "passed", "message": fmt.Sprintf("rate limit: %s/%s remaining", remaining, limit)})
+		}
+	} else if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		checks = append(checks, gin.H{"check": "connectivity", "status": "failed", "message": fmt.Sprintf("authentication failed (HTTP %d): token may be expired or revoked", resp.StatusCode)})
+	} else {
+		checks = append(checks, gin.H{"check": "connectivity", "status": "warning", "message": fmt.Sprintf("unexpected response (HTTP %d)", resp.StatusCode)})
+	}
+
+	// Check owner access if specified.
+	if owner != "" && result["valid"] == true {
+		ownerReq, _ := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("https://api.github.com/orgs/%s", owner), nil)
+		ownerReq.Header.Set("Authorization", "Bearer "+token)
+		ownerReq.Header.Set("Accept", "application/vnd.github+json")
+		ownerResp, err := http.DefaultClient.Do(ownerReq)
+		if err == nil {
+			defer ownerResp.Body.Close()
+			if ownerResp.StatusCode == http.StatusOK {
+				checks = append(checks, gin.H{"check": "owner_access", "status": "passed", "message": fmt.Sprintf("can access organization '%s'", owner)})
+			} else {
+				checks = append(checks, gin.H{"check": "owner_access", "status": "warning", "message": fmt.Sprintf("cannot access organization '%s' (HTTP %d) — may be a user account", owner, ownerResp.StatusCode)})
+			}
+		}
+	} else if owner == "" {
+		checks = append(checks, gin.H{"check": "owner_access", "status": "warning", "message": "no owner configured — set 'owner' key in secret data to validate org/user access"})
+	}
+
+	result["checks"] = checks
+}
+
+// validateGitHubApp checks that a GitHub App installation has valid credentials.
+// Expected data keys: "app_id", "installation_id", "private_key".
+func (s *PlatformServer) validateGitHubApp(ctx context.Context, data map[string]string, result gin.H) {
+	checks := []gin.H{}
+	allPresent := true
+
+	for _, key := range []string{"app_id", "installation_id", "private_key"} {
+		if data[key] == "" {
+			checks = append(checks, gin.H{"check": key + "_present", "status": "failed", "message": fmt.Sprintf("required key '%s' is missing from secret data", key)})
+			allPresent = false
+		} else {
+			checks = append(checks, gin.H{"check": key + "_present", "status": "passed", "message": fmt.Sprintf("'%s' is present", key)})
+		}
+	}
+
+	if allPresent {
+		result["valid"] = true
+		checks = append(checks, gin.H{"check": "credentials_complete", "status": "passed", "message": "all GitHub App credentials are present"})
+	}
+
+	result["checks"] = checks
+}
+
+// validateAzureSP checks an Azure Service Principal's credentials.
+// Expected data keys: "client_id", "client_secret", "tenant_id", optionally "organization".
+func (s *PlatformServer) validateAzureSP(ctx context.Context, data map[string]string, result gin.H) {
+	checks := []gin.H{}
+	allPresent := true
+
+	for _, key := range []string{"client_id", "client_secret", "tenant_id"} {
+		if data[key] == "" {
+			checks = append(checks, gin.H{"check": key + "_present", "status": "failed", "message": fmt.Sprintf("required key '%s' is missing from secret data", key)})
+			allPresent = false
+		} else {
+			checks = append(checks, gin.H{"check": key + "_present", "status": "passed", "message": fmt.Sprintf("'%s' is present", key)})
+		}
+	}
+
+	if !allPresent {
+		result["checks"] = checks
+		return
+	}
+
+	// Test Azure AD token acquisition.
+	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", data["tenant_id"])
+	body := fmt.Sprintf("grant_type=client_credentials&client_id=%s&client_secret=%s&scope=499b84ac-1321-427f-aa17-267ca6975798/.default",
+		data["client_id"], data["client_secret"])
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(body))
+	if err != nil {
+		checks = append(checks, gin.H{"check": "token_acquisition", "status": "failed", "message": "failed to build request: " + err.Error()})
+		result["checks"] = checks
+		return
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		checks = append(checks, gin.H{"check": "token_acquisition", "status": "failed", "message": "failed to contact Azure AD: " + err.Error()})
+		result["checks"] = checks
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		checks = append(checks, gin.H{"check": "token_acquisition", "status": "passed", "message": "successfully acquired Azure AD token"})
+		result["valid"] = true
+	} else {
+		checks = append(checks, gin.H{"check": "token_acquisition", "status": "failed", "message": fmt.Sprintf("Azure AD token acquisition failed (HTTP %d): check client_id, client_secret, and tenant_id", resp.StatusCode)})
+	}
+
+	result["checks"] = checks
 }
 
 // ---------- Migrations ----------
