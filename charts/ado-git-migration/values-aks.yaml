@@ -1,0 +1,13 @@
+# AKS (Azure Kubernetes Service) overrides
+image:
+  repository: ghcr.io/tesserix/reposhift
+  pullPolicy: IfNotPresent
+
+persistence:
+  storageClassName: managed-csi
+  size: "50Gi"
+
+postgresql:
+  enabled: false
+
+imagePullSecrets: []

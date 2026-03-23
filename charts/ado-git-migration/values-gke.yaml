@@ -1,0 +1,13 @@
+# GKE (Google Kubernetes Engine) overrides
+image:
+  repository: ghcr.io/tesserix/reposhift
+  pullPolicy: IfNotPresent
+
+persistence:
+  storageClassName: standard-rwo
+  size: "10Gi"
+
+postgresql:
+  enabled: false
+
+imagePullSecrets: []

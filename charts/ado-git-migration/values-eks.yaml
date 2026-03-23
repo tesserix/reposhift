@@ -1,0 +1,13 @@
+# EKS (Amazon Elastic Kubernetes Service) overrides
+image:
+  repository: ghcr.io/tesserix/reposhift
+  pullPolicy: IfNotPresent
+
+persistence:
+  storageClassName: gp3
+  size: "50Gi"
+
+postgresql:
+  enabled: false
+
+imagePullSecrets: []
