@@ -177,16 +177,20 @@ func (s *MigrationService) MigrateRepository(ctx context.Context, migration *mig
 		Percentage:  70,
 	})
 
-	// Extract excludeBranches from migration settings if present
-	var repoExcludeBranches []string
+	// Extract branch filter settings from migration spec
+	var repoIncludeBranches, repoExcludeBranches []string
 	if migration.Spec.Settings.Repository != nil {
+		repoIncludeBranches = migration.Spec.Settings.Repository.IncludeBranches
 		repoExcludeBranches = migration.Spec.Settings.Repository.ExcludeBranches
+		if len(repoIncludeBranches) > 0 {
+			logger.Info("Branch inclusion patterns configured", "patterns", repoIncludeBranches)
+		}
 		if len(repoExcludeBranches) > 0 {
 			logger.Info("Branch exclusion patterns configured", "patterns", repoExcludeBranches)
 		}
 	}
 
-	if err := s.pushToGitHub(ctx, migrationDir, githubToken, logger, repoExcludeBranches); err != nil {
+	if err := s.pushToGitHub(ctx, migrationDir, githubToken, logger, repoIncludeBranches, repoExcludeBranches); err != nil {
 		progressCallback(&RepositoryMigrationProgress{
 			Phase:       "pushing",
 			Description: "Failed to push to GitHub",
@@ -626,8 +630,12 @@ func (s *MigrationService) prepareForGitHub(repoDir, githubURL string, logger lo
 
 // pushToGitHub pushes the repository to GitHub using git CLI with automatic branch protection handling.
 // We use git CLI instead of go-git to better handle authentication and push operations.
-// If excludeBranches/includeBranches are set, only matching branches are pushed instead of --all.
-func (s *MigrationService) pushToGitHub(ctx context.Context, repoDir, token string, logger logr.Logger, excludeBranches ...[]string) error {
+// Branch filtering:
+//   - If includeBranches is set, ONLY those branches are pushed (whitelist mode).
+//   - If excludeBranches is set, those branches are skipped (blacklist mode).
+//   - If both are set, include is applied first then exclude removes from that set.
+//   - The default branch is never excluded to prevent broken migrations.
+func (s *MigrationService) pushToGitHub(ctx context.Context, repoDir, token string, logger logr.Logger, includeBranches, excludeBranches []string) error {
 	logger.Info("Pushing repository to GitHub with git CLI", "dir", repoDir)
 
 	// Get the remote URL
@@ -673,15 +681,12 @@ func (s *MigrationService) pushToGitHub(ctx context.Context, repoDir, token stri
 		}
 	}
 
-	// Determine if we have branch exclusion filters
-	var branchExclusions []string
-	if len(excludeBranches) > 0 && len(excludeBranches[0]) > 0 {
-		branchExclusions = excludeBranches[0]
-	}
+	// Determine if we have branch filters (include or exclude)
+	hasBranchFilters := len(includeBranches) > 0 || len(excludeBranches) > 0
 
 	// Push branches — either selectively (with filters) or all at once
-	if len(branchExclusions) > 0 {
-		logger.Info("Pushing branches with exclusion filters", "excludePatterns", branchExclusions)
+	if hasBranchFilters {
+		logger.Info("Pushing branches with filters", "includePatterns", includeBranches, "excludePatterns", excludeBranches)
 
 		// Analyze repo to get all branches
 		repoInfo, analyzeErr := s.analyzeRepository(repoDir, logger)
@@ -695,8 +700,8 @@ func (s *MigrationService) pushToGitHub(ctx context.Context, repoDir, token stri
 			defaultBranch = "main"
 		}
 
-		// Filter branches
-		filteredBranches := FilterBranches(repoInfo.Branches, nil, branchExclusions, defaultBranch, logger)
+		// Filter branches using both include and exclude lists
+		filteredBranches := FilterBranches(repoInfo.Branches, includeBranches, excludeBranches, defaultBranch, logger)
 		logger.Info("Filtered branches for push",
 			"total", len(repoInfo.Branches),
 			"pushing", len(filteredBranches),

@@ -15,16 +15,33 @@ import (
 	"github.com/tesserix/reposhift/internal/platform/secrets"
 )
 
+// BranchFilterMode determines how the branch list is applied.
+type BranchFilterMode string
+
+const (
+	// BranchFilterInclude means only listed branches are migrated.
+	BranchFilterInclude BranchFilterMode = "include"
+	// BranchFilterExclude means listed branches are skipped.
+	BranchFilterExclude BranchFilterMode = "exclude"
+)
+
 // CreateMigrationRequest carries the parameters for creating a new migration.
 type CreateMigrationRequest struct {
-	DisplayName    string                 `json:"displayName"`
-	SourceOrg      string                 `json:"sourceOrg"`
-	SourceProject  string                 `json:"sourceProject"`
-	SourceRepos    []string               `json:"sourceRepos"`
-	TargetOwner    string                 `json:"targetOwner"`
-	ADOSecretName  string                 `json:"adoSecretName"`
-	GitHubSecretName string              `json:"githubSecretName"`
-	Settings       map[string]interface{} `json:"settings,omitempty"`
+	DisplayName      string                 `json:"displayName"`
+	SourceOrg        string                 `json:"sourceOrg"`
+	SourceProject    string                 `json:"sourceProject"`
+	SourceRepos      []string               `json:"sourceRepos"`
+	TargetOwner      string                 `json:"targetOwner"`
+	ADOSecretName    string                 `json:"adoSecretName"`
+	GitHubSecretName string                 `json:"githubSecretName"`
+
+	// Branch filtering — choose "include" to whitelist or "exclude" to blacklist.
+	// If empty/unset, all branches are migrated.
+	BranchFilterMode BranchFilterMode `json:"branchFilterMode,omitempty"`
+	// Branches is the list of branch names or glob patterns (e.g. "feature/*").
+	Branches         []string         `json:"branches,omitempty"`
+
+	Settings         map[string]interface{} `json:"settings,omitempty"`
 }
 
 // MigrationStatusResponse combines the DB record with live CRD status.

@@ -14,19 +14,50 @@ export default function NewMigrationPage() {
   const [sourceProject, setSourceProject] = useState("");
   const [sourceRepos, setSourceRepos] = useState("");
   const [targetOwner, setTargetOwner] = useState("");
-  const [adoSecretId, setAdoSecretId] = useState("");
-  const [githubSecretId, setGithubSecretId] = useState("");
+  const [adoSecretName, setAdoSecretName] = useState("");
+  const [githubSecretName, setGithubSecretName] = useState("");
+
+  // Branch filtering
+  const [branchFilterMode, setBranchFilterMode] = useState<"" | "include" | "exclude">("");
+  const [branchInput, setBranchInput] = useState("");
+  const [branches, setBranches] = useState<string[]>([]);
 
   useEffect(() => {
     if (!api.isAuthenticated()) {
       window.location.href = "/login";
       return;
     }
-    api.listSecrets().then(setSecrets).catch(() => {});
+    api
+      .listSecrets()
+      .then((res) => setSecrets(res.secrets ?? []))
+      .catch(() => {});
   }, []);
 
-  const adoSecrets = secrets.filter((s) => s.type === "ado_pat");
-  const githubSecrets = secrets.filter((s) => s.type === "github_token");
+  const adoSecrets = secrets.filter(
+    (s) => s.secretType === "ado_pat" || s.secretType === "azure_sp"
+  );
+  const githubSecrets = secrets.filter(
+    (s) => s.secretType === "github_token" || s.secretType === "github_app"
+  );
+
+  function addBranch() {
+    const trimmed = branchInput.trim();
+    if (trimmed && !branches.includes(trimmed)) {
+      setBranches([...branches, trimmed]);
+      setBranchInput("");
+    }
+  }
+
+  function removeBranch(b: string) {
+    setBranches(branches.filter((x) => x !== b));
+  }
+
+  function handleBranchKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addBranch();
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,13 +71,15 @@ export default function NewMigrationPage() {
         .filter(Boolean);
 
       await api.createMigration({
-        display_name: displayName,
-        source_org: sourceOrg,
-        source_project: sourceProject,
-        source_repos: repos,
-        target_owner: targetOwner,
-        ado_secret_id: adoSecretId,
-        github_secret_id: githubSecretId,
+        displayName,
+        sourceOrg,
+        sourceProject,
+        sourceRepos: repos,
+        targetOwner,
+        adoSecretName,
+        githubSecretName,
+        branchFilterMode: branchFilterMode || undefined,
+        branches: branches.length > 0 ? branches : undefined,
       });
 
       window.location.href = "/migrations";
@@ -88,6 +121,7 @@ export default function NewMigrationPage() {
             />
           </Field>
 
+          {/* Source */}
           <div className="border-t border-zinc-800 pt-6">
             <h3 className="mb-4 text-sm font-semibold text-zinc-300">
               Source (Azure DevOps)
@@ -127,6 +161,7 @@ export default function NewMigrationPage() {
             </div>
           </div>
 
+          {/* Target */}
           <div className="border-t border-zinc-800 pt-6">
             <h3 className="mb-4 text-sm font-semibold text-zinc-300">
               Target (GitHub)
@@ -143,6 +178,114 @@ export default function NewMigrationPage() {
             </Field>
           </div>
 
+          {/* Branch Filtering */}
+          <div className="border-t border-zinc-800 pt-6">
+            <h3 className="mb-1 text-sm font-semibold text-zinc-300">
+              Branch Filtering
+            </h3>
+            <p className="mb-4 text-xs text-zinc-500">
+              Control which branches are migrated. By default all branches are included.
+            </p>
+
+            <div className="mb-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setBranchFilterMode(branchFilterMode === "" ? "" : "")}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                  branchFilterMode === ""
+                    ? "border-emerald-700 bg-emerald-950 text-emerald-400"
+                    : "border-zinc-700 text-zinc-400 hover:border-zinc-600"
+                }`}
+              >
+                All branches
+              </button>
+              <button
+                type="button"
+                onClick={() => setBranchFilterMode("include")}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                  branchFilterMode === "include"
+                    ? "border-blue-700 bg-blue-950 text-blue-400"
+                    : "border-zinc-700 text-zinc-400 hover:border-zinc-600"
+                }`}
+              >
+                Include only
+              </button>
+              <button
+                type="button"
+                onClick={() => setBranchFilterMode("exclude")}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                  branchFilterMode === "exclude"
+                    ? "border-amber-700 bg-amber-950 text-amber-400"
+                    : "border-zinc-700 text-zinc-400 hover:border-zinc-600"
+                }`}
+              >
+                Exclude
+              </button>
+            </div>
+
+            {branchFilterMode !== "" && (
+              <div>
+                <p className="mb-2 text-xs text-zinc-400">
+                  {branchFilterMode === "include"
+                    ? "Only these branches will be migrated. Supports glob patterns (e.g. feature/*)."
+                    : "These branches will be skipped. The default branch is never excluded. Supports glob patterns."}
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={branchInput}
+                    onChange={(e) => setBranchInput(e.target.value)}
+                    onKeyDown={handleBranchKeyDown}
+                    placeholder={
+                      branchFilterMode === "include"
+                        ? "e.g. main, develop, release/*"
+                        : "e.g. dependabot/*, feature/legacy-*"
+                    }
+                    className="input flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={addBranch}
+                    className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-700"
+                  >
+                    Add
+                  </button>
+                </div>
+
+                {branches.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {branches.map((b) => (
+                      <span
+                        key={b}
+                        className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium ${
+                          branchFilterMode === "include"
+                            ? "border-blue-800 bg-blue-950/50 text-blue-400"
+                            : "border-amber-800 bg-amber-950/50 text-amber-400"
+                        }`}
+                      >
+                        {b}
+                        <button
+                          type="button"
+                          onClick={() => removeBranch(b)}
+                          className="ml-0.5 text-zinc-500 hover:text-zinc-300"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {branches.length === 0 && branchFilterMode !== "" && (
+                  <p className="mt-2 text-xs text-zinc-600">
+                    No branches added yet. Add branch names or patterns above.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Credentials */}
           <div className="border-t border-zinc-800 pt-6">
             <h3 className="mb-4 text-sm font-semibold text-zinc-300">
               Credentials
@@ -151,13 +294,13 @@ export default function NewMigrationPage() {
               <Field label="ADO Secret">
                 <select
                   required
-                  value={adoSecretId}
-                  onChange={(e) => setAdoSecretId(e.target.value)}
+                  value={adoSecretName}
+                  onChange={(e) => setAdoSecretName(e.target.value)}
                   className="input"
                 >
-                  <option value="">Select ADO PAT...</option>
+                  <option value="">Select ADO credential...</option>
                   {adoSecrets.map((s) => (
-                    <option key={s.id} value={s.id}>
+                    <option key={s.name} value={s.name}>
                       {s.name}
                     </option>
                   ))}
@@ -166,13 +309,13 @@ export default function NewMigrationPage() {
               <Field label="GitHub Secret">
                 <select
                   required
-                  value={githubSecretId}
-                  onChange={(e) => setGithubSecretId(e.target.value)}
+                  value={githubSecretName}
+                  onChange={(e) => setGithubSecretName(e.target.value)}
                   className="input"
                 >
-                  <option value="">Select GitHub token...</option>
+                  <option value="">Select GitHub credential...</option>
                   {githubSecrets.map((s) => (
-                    <option key={s.id} value={s.id}>
+                    <option key={s.name} value={s.name}>
                       {s.name}
                     </option>
                   ))}

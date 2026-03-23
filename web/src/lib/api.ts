@@ -265,13 +265,15 @@ export interface MigrationList {
 }
 
 export interface CreateMigrationRequest {
-  display_name: string;
-  source_org: string;
-  source_project: string;
-  source_repos: string[];
-  target_owner: string;
-  ado_secret_id: string;
-  github_secret_id: string;
+  displayName: string;
+  sourceOrg: string;
+  sourceProject: string;
+  sourceRepos: string[];
+  targetOwner: string;
+  adoSecretName: string;
+  githubSecretName: string;
+  branchFilterMode?: "include" | "exclude" | "";
+  branches?: string[];
 }
 
 export interface DashboardStats {
