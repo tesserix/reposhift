@@ -110,14 +110,17 @@ func run() error {
 	orchestrator := migration.NewOrchestrator(migrationStore, secretsProvider, nil, cfg.K8sNamespace)
 
 	// In self-hosted mode, ensure a default tenant and admin user exist.
+	var defaultTenantID, defaultAdminUserID string
 	if cfg.IsSelfHosted() {
-		if err := ensureDefaultTenant(ctx, tenantStore, cfg); err != nil {
+		var err error
+		defaultTenantID, defaultAdminUserID, err = ensureDefaultTenant(ctx, tenantStore, cfg)
+		if err != nil {
 			return fmt.Errorf("ensure default tenant: %w", err)
 		}
 	}
 
 	// Build the platform server and router.
-	srv := platform.NewPlatformServer(cfg, tenantStore, migrationStore, secretsProvider, orchestrator, githubOAuth)
+	srv := platform.NewPlatformServer(cfg, tenantStore, migrationStore, secretsProvider, orchestrator, githubOAuth, defaultTenantID, defaultAdminUserID)
 	router := srv.SetupRouter()
 
 	// Start HTTP server.
@@ -164,13 +167,24 @@ func run() error {
 // ensureDefaultTenant creates the "default" tenant and an "admin" user if they
 // do not already exist. This is used in self-hosted mode so that the instance
 // is immediately usable without requiring GitHub OAuth sign-up.
-func ensureDefaultTenant(ctx context.Context, store *tenant.TenantStore, cfg *config.PlatformConfig) error {
+// Returns the tenant ID and admin user ID for use by the admin token middleware.
+func ensureDefaultTenant(ctx context.Context, store *tenant.TenantStore, cfg *config.PlatformConfig) (string, string, error) {
 	const defaultTenantSlug = "default"
 
 	// Check if the default tenant already exists.
-	if _, err := store.GetTenantBySlug(ctx, defaultTenantSlug); err == nil {
-		slog.Info("default tenant already exists")
-		return nil
+	if existing, err := store.GetTenantBySlug(ctx, defaultTenantSlug); err == nil {
+		slog.Info("default tenant already exists", "tenantId", existing.ID)
+		// Look up the admin user to return its ID.
+		members, mErr := store.GetTenantMembers(ctx, existing.ID)
+		if mErr != nil {
+			return "", "", fmt.Errorf("get default tenant members: %w", mErr)
+		}
+		for _, m := range members {
+			if m.Role == tenant.RoleOwner {
+				return existing.ID, m.UserID, nil
+			}
+		}
+		return existing.ID, "", nil
 	}
 
 	tenantID := uuid.New().String()
@@ -184,29 +198,29 @@ func ensureDefaultTenant(ctx context.Context, store *tenant.TenantStore, cfg *co
 		Settings:     map[string]any{},
 	}
 	if err := store.CreateTenant(ctx, t); err != nil {
-		return fmt.Errorf("create default tenant: %w", err)
+		return "", "", fmt.Errorf("create default tenant: %w", err)
 	}
 	slog.Info("default tenant created", "tenantId", tenantID)
 
-	// Create the admin user.
+	// Create the admin user (no GitHub identity).
 	adminUserID := uuid.New().String()
 	adminUser, err := store.UpsertUser(ctx, &tenant.User{
 		ID:          adminUserID,
-		GitHubID:    0,
+		GitHubID:    nil,
 		GitHubLogin: "admin",
 		GitHubEmail: "admin@localhost",
 		Name:        "Admin",
 	})
 	if err != nil {
-		return fmt.Errorf("create admin user: %w", err)
+		return "", "", fmt.Errorf("create admin user: %w", err)
 	}
 	slog.Info("admin user created", "userId", adminUser.ID)
 
 	// Add the admin user as owner of the default tenant.
 	if err := store.AddMember(ctx, tenantID, adminUser.ID, tenant.RoleOwner); err != nil {
-		return fmt.Errorf("add admin to default tenant: %w", err)
+		return "", "", fmt.Errorf("add admin to default tenant: %w", err)
 	}
 	slog.Info("admin user added to default tenant as owner")
 
-	return nil
+	return tenantID, adminUser.ID, nil
 }

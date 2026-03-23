@@ -22,10 +22,11 @@ type Tenant struct {
 	UpdatedAt    time.Time         `json:"updated_at"`
 }
 
-// User represents an authenticated GitHub user.
+// User represents an authenticated user. GitHubID is nil for non-GitHub users
+// (e.g., admin-token users in self-hosted mode).
 type User struct {
 	ID          string    `json:"id"`
-	GitHubID    int64     `json:"github_id"`
+	GitHubID    *int64    `json:"github_id"`
 	GitHubLogin string    `json:"github_login"`
 	GitHubEmail string    `json:"github_email"`
 	AvatarURL   string    `json:"avatar_url"`

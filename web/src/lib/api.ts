@@ -1,23 +1,36 @@
 const BASE = "/api/platform/v1";
 
-function getToken(): string | null {
+function getStoredToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("reposhift_token");
 }
 
-function setToken(token: string) {
+function setStoredToken(token: string) {
   localStorage.setItem("reposhift_token", token);
 }
 
-function clearToken() {
+function clearStoredToken() {
   localStorage.removeItem("reposhift_token");
+  localStorage.removeItem("reposhift_auth_mode");
+}
+
+function getAuthMode(): "saas" | "selfhosted" | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("reposhift_auth_mode") as
+    | "saas"
+    | "selfhosted"
+    | null;
+}
+
+function setAuthMode(mode: "saas" | "selfhosted") {
+  localStorage.setItem("reposhift_auth_mode", mode);
 }
 
 async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = getToken();
+  const token = getStoredToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
@@ -29,7 +42,7 @@ async function request<T>(
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
 
   if (res.status === 401) {
-    clearToken();
+    clearStoredToken();
     window.location.href = "/login";
     throw new Error("Unauthorized");
   }
@@ -43,8 +56,23 @@ async function request<T>(
   return res.json();
 }
 
+export interface PlatformMode {
+  mode: "saas" | "selfhosted";
+  githubOAuthEnabled: boolean;
+}
+
 export const api = {
-  // Auth
+  // Platform mode detection (public endpoint, no auth required)
+  async getMode(): Promise<PlatformMode> {
+    const res = await fetch(`${BASE}/config/mode`);
+    if (!res.ok) {
+      // Default to saas if the endpoint is unavailable
+      return { mode: "saas", githubOAuthEnabled: true };
+    }
+    return res.json();
+  },
+
+  // Auth — GitHub OAuth
   login() {
     window.location.href = `${BASE}/auth/github`;
   },
@@ -54,16 +82,26 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ code, state }),
     });
-    setToken(data.token);
+    setStoredToken(data.token);
+    setAuthMode("saas");
     return data;
   },
 
-  isAuthenticated(): boolean {
-    return !!getToken();
+  // Auth — Admin token (self-hosted)
+  loginWithAdminToken(token: string) {
+    setStoredToken(token);
+    setAuthMode("selfhosted");
   },
 
+  // Auth — common
+  isAuthenticated(): boolean {
+    return !!getStoredToken();
+  },
+
+  getAuthMode,
+
   logout() {
-    clearToken();
+    clearStoredToken();
     window.location.href = "/login";
   },
 

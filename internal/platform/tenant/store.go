@@ -101,11 +101,14 @@ func (s *TenantStore) UpdateTenant(ctx context.Context, t *Tenant) error {
 }
 
 // UpsertUser inserts a user or updates on github_id conflict, returning the resulting row.
+// For users without a GitHub identity (GitHubID == nil), it falls back to ON CONFLICT (id)
+// since NULL github_id values are treated as distinct by PostgreSQL.
 func (s *TenantStore) UpsertUser(ctx context.Context, u *User) (*User, error) {
 	now := time.Now().UTC()
 
-	var result User
-	err := s.pool.QueryRow(ctx, `
+	var query string
+	if u.GitHubID != nil {
+		query = `
 		INSERT INTO users (id, github_id, github_login, github_email, avatar_url, name, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
 		ON CONFLICT (github_id) DO UPDATE
@@ -114,7 +117,22 @@ func (s *TenantStore) UpsertUser(ctx context.Context, u *User) (*User, error) {
 		    avatar_url   = EXCLUDED.avatar_url,
 		    name         = EXCLUDED.name,
 		    updated_at   = $7
-		RETURNING id, github_id, github_login, github_email, avatar_url, name, created_at, updated_at`,
+		RETURNING id, github_id, github_login, github_email, avatar_url, name, created_at, updated_at`
+	} else {
+		query = `
+		INSERT INTO users (id, github_id, github_login, github_email, avatar_url, name, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+		ON CONFLICT (id) DO UPDATE
+		SET github_login = EXCLUDED.github_login,
+		    github_email = EXCLUDED.github_email,
+		    avatar_url   = EXCLUDED.avatar_url,
+		    name         = EXCLUDED.name,
+		    updated_at   = $7
+		RETURNING id, github_id, github_login, github_email, avatar_url, name, created_at, updated_at`
+	}
+
+	var result User
+	err := s.pool.QueryRow(ctx, query,
 		u.ID, u.GitHubID, u.GitHubLogin, u.GitHubEmail, u.AvatarURL, u.Name, now,
 	).Scan(
 		&result.ID, &result.GitHubID, &result.GitHubLogin, &result.GitHubEmail,

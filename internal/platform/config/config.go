@@ -70,6 +70,11 @@ func (c *PlatformConfig) IsSelfHosted() bool {
 	return c.Mode == ModeSelfHosted
 }
 
+// GitHubOAuthEnabled returns true when GitHub OAuth credentials are configured.
+func (c *PlatformConfig) GitHubOAuthEnabled() bool {
+	return c.GitHub.ClientID != "" && c.GitHub.ClientSecret != ""
+}
+
 func (c *PlatformConfig) Validate() error {
 	if c.Mode != ModeSaaS && c.Mode != ModeSelfHosted {
 		return fmt.Errorf("REPOSHIFT_MODE must be 'saas' or 'selfhosted', got %q", c.Mode)
@@ -77,11 +82,16 @@ func (c *PlatformConfig) Validate() error {
 	if c.DatabaseURL == "" {
 		return fmt.Errorf("database URL is required")
 	}
-	if c.JWTSecret == "" {
-		return fmt.Errorf("JWT_SECRET is required")
-	}
-	if len(c.JWTSecret) < 32 {
-		return fmt.Errorf("JWT_SECRET must be at least 32 characters long")
+	// JWT_SECRET is required unless running in self-hosted mode with admin token
+	// only (no GitHub OAuth), since JWTs are never issued in that configuration.
+	needsJWT := c.IsSaaS() || c.GitHub.ClientID != ""
+	if needsJWT {
+		if c.JWTSecret == "" {
+			return fmt.Errorf("JWT_SECRET is required when GitHub OAuth is configured or in SaaS mode")
+		}
+		if len(c.JWTSecret) < 32 {
+			return fmt.Errorf("JWT_SECRET must be at least 32 characters long")
+		}
 	}
 	if c.IsSaaS() {
 		if c.EncryptionKey == "" {

@@ -37,15 +37,18 @@ const oauthStateCookieName = "reposhift_oauth_state"
 
 // PlatformServer wraps all platform dependencies and exposes the HTTP API.
 type PlatformServer struct {
-	cfg             *config.PlatformConfig
-	tenantStore     *tenant.TenantStore
-	migrationStore  *migration.MigrationStore
-	secretsProvider secrets.SecretsProvider
-	orchestrator    *migration.Orchestrator
-	githubOAuth     *auth.GitHubOAuth
+	cfg                *config.PlatformConfig
+	tenantStore        *tenant.TenantStore
+	migrationStore     *migration.MigrationStore
+	secretsProvider    secrets.SecretsProvider
+	orchestrator       *migration.Orchestrator
+	githubOAuth        *auth.GitHubOAuth
+	defaultTenantID    string // Self-hosted: UUID of the default tenant
+	defaultAdminUserID string // Self-hosted: UUID of the admin user
 }
 
 // NewPlatformServer creates a PlatformServer with the given dependencies.
+// defaultTenantID and defaultAdminUserID are only populated in self-hosted mode.
 func NewPlatformServer(
 	cfg *config.PlatformConfig,
 	tenantStore *tenant.TenantStore,
@@ -53,14 +56,18 @@ func NewPlatformServer(
 	secretsProvider secrets.SecretsProvider,
 	orchestrator *migration.Orchestrator,
 	githubOAuth *auth.GitHubOAuth,
+	defaultTenantID string,
+	defaultAdminUserID string,
 ) *PlatformServer {
 	return &PlatformServer{
-		cfg:             cfg,
-		tenantStore:     tenantStore,
-		migrationStore:  migrationStore,
-		secretsProvider: secretsProvider,
-		orchestrator:    orchestrator,
-		githubOAuth:     githubOAuth,
+		cfg:                cfg,
+		tenantStore:        tenantStore,
+		migrationStore:     migrationStore,
+		secretsProvider:    secretsProvider,
+		orchestrator:       orchestrator,
+		githubOAuth:        githubOAuth,
+		defaultTenantID:    defaultTenantID,
+		defaultAdminUserID: defaultAdminUserID,
 	}
 }
 
@@ -76,6 +83,9 @@ func (s *PlatformServer) SetupRouter() *gin.Engine {
 
 	v1 := r.Group("/platform/v1")
 
+	// Public config endpoint (no auth required).
+	v1.GET("/config/mode", s.handleConfigMode)
+
 	// Auth routes (no auth required).
 	authGroup := v1.Group("/auth")
 	{
@@ -84,16 +94,10 @@ func (s *PlatformServer) SetupRouter() *gin.Engine {
 		authGroup.POST("/refresh", s.handleRefreshToken)
 	}
 
-	// Protected routes: choose auth middleware based on deployment mode.
+	// Protected routes: unified auth middleware supports both admin token and JWT.
 	protected := v1.Group("")
-	if s.cfg.IsSelfHosted() && s.cfg.AdminToken != "" && s.githubOAuth == nil {
-		// Self-hosted mode with admin token (no GitHub OAuth configured).
-		protected.Use(auth.AdminTokenMiddleware(s.cfg.AdminToken))
-	} else {
-		// SaaS mode, or self-hosted with GitHub OAuth configured.
-		protected.Use(auth.JWTAuthMiddleware(s.cfg.JWTSecret))
-		protected.Use(s.tenantMembershipMiddleware())
-	}
+	protected.Use(s.unifiedAuthMiddleware())
+	protected.Use(s.tenantMembershipMiddleware())
 	{
 		// Tenant routes.
 		protected.GET("/tenant", s.getCurrentTenant)
@@ -199,6 +203,69 @@ func (s *PlatformServer) handleReady(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ready"})
 }
 
+// handleConfigMode returns the deployment mode and available auth methods.
+// This is a public endpoint so the frontend can adapt its UI accordingly.
+func (s *PlatformServer) handleConfigMode(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"mode":                s.cfg.Mode,
+		"githubOAuthEnabled":  s.cfg.GitHubOAuthEnabled(),
+	})
+}
+
+// unifiedAuthMiddleware supports both admin token and JWT authentication
+// simultaneously. It checks for admin token first (if configured), then
+// falls back to JWT validation. This allows both auth methods to coexist
+// in self-hosted mode with GitHub OAuth enabled.
+func (s *PlatformServer) unifiedAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenString, ok := extractBearerToken(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing or malformed authorization header"})
+			return
+		}
+
+		// Check admin token first (if configured).
+		if s.cfg.AdminToken != "" && tokenString == s.cfg.AdminToken {
+			c.Set("user_id", s.defaultAdminUserID)
+			c.Set("tenant_id", s.defaultTenantID)
+			c.Set("role", "admin")
+			c.Next()
+			return
+		}
+
+		// Fall back to JWT validation.
+		if s.cfg.JWTSecret != "" {
+			claims, err := auth.ValidateToken(tokenString, s.cfg.JWTSecret)
+			if err == nil {
+				c.Set("user_id", claims.UserID)
+				c.Set("tenant_id", claims.TenantID)
+				c.Set("role", claims.Role)
+				c.Next()
+				return
+			}
+		}
+
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+	}
+}
+
+// extractBearerToken pulls the token from the Authorization: Bearer <token> header.
+func extractBearerToken(c *gin.Context) (string, bool) {
+	header := c.GetHeader("Authorization")
+	if header == "" {
+		return "", false
+	}
+	parts := strings.SplitN(header, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return "", false
+	}
+	token := strings.TrimSpace(parts[1])
+	if token == "" {
+		return "", false
+	}
+	return token, true
+}
+
 // ---------- Auth ----------
 
 type githubAuthRequest struct {
@@ -290,9 +357,10 @@ func (s *PlatformServer) handleGitHubCallback(c *gin.Context) {
 
 	// Upsert the user in the database. The ID is only used for new inserts;
 	// on conflict (existing github_id), UpsertUser returns the existing row's ID.
+	ghID := ghUser.ID
 	user, err := s.tenantStore.UpsertUser(c.Request.Context(), &tenant.User{
 		ID:          uuid.New().String(),
-		GitHubID:    ghUser.ID,
+		GitHubID:    &ghID,
 		GitHubLogin: ghUser.Login,
 		GitHubEmail: ghUser.Email,
 		Name:        ghUser.Name,

@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS tenants (
 -- Users (GitHub identity)
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    github_id BIGINT NOT NULL UNIQUE,
+    github_id BIGINT UNIQUE,
     github_login VARCHAR(255) NOT NULL,
     github_email VARCHAR(255),
     avatar_url TEXT,

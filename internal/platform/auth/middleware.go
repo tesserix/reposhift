@@ -37,8 +37,9 @@ func JWTAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 }
 
 // AdminTokenMiddleware validates a static bearer token for self-hosted mode,
-// granting admin-level access without JWT-based identity.
-func AdminTokenMiddleware(adminToken string) gin.HandlerFunc {
+// granting admin-level access without JWT-based identity. The userID and
+// tenantID must be the actual database UUIDs from the default tenant setup.
+func AdminTokenMiddleware(adminToken, userID, tenantID string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString, ok := extractBearerToken(c)
 		if !ok {
@@ -51,8 +52,8 @@ func AdminTokenMiddleware(adminToken string) gin.HandlerFunc {
 			return
 		}
 
-		c.Set(ctxKeyUserID, "admin")
-		c.Set(ctxKeyTenantID, "default")
+		c.Set(ctxKeyUserID, userID)
+		c.Set(ctxKeyTenantID, tenantID)
 		c.Set(ctxKeyRole, "admin")
 		c.Next()
 	}
