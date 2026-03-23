@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { api, type Secret, type SecretValidation } from "@/lib/api";
-import Nav from "@/components/nav";
+import Sidebar from "@/components/sidebar";
+import { PageHeader } from "@/components/page-header";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/card";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/table";
+import { Badge } from "@/components/badge";
+import { Button } from "@/components/button";
+import { Input } from "@/components/input";
+import { Select } from "@/components/select";
+import { EmptyState } from "@/components/empty-state";
 
 const SECRET_TYPES = [
   { value: "ado_pat", label: "ADO PAT", fields: ["token", "organization"] },
@@ -19,10 +27,24 @@ function getTypeLabel(type: string) {
   return SECRET_TYPES.find((t) => t.value === type)?.label ?? type;
 }
 
+function getTypeBadgeVariant(type: string): "info" | "success" | "warning" | "default" {
+  const map: Record<string, "info" | "success" | "warning" | "default"> = {
+    ado_pat: "info",
+    github_token: "success",
+    github_app: "success",
+    azure_sp: "warning",
+  };
+  return map[type] || "default";
+}
+
+function isRequiredField(field: string): boolean {
+  return ["token", "client_id", "client_secret", "tenant_id", "app_id", "installation_id", "private_key"].includes(field);
+}
+
 export default function SecretsPage() {
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [showPanel, setShowPanel] = useState(false);
   const [name, setName] = useState("");
   const [type, setType] = useState("ado_pat");
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -65,7 +87,7 @@ export default function SecretsPage() {
       await api.createSecret(name, type, fields);
       setName("");
       setFields({});
-      setShowForm(false);
+      setShowPanel(false);
       loadSecrets();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create secret");
@@ -104,190 +126,260 @@ export default function SecretsPage() {
 
   return (
     <div className="flex min-h-screen">
-      <Nav />
-      <main className="ml-60 flex-1 p-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Secrets</h1>
-            <p className="mt-1 text-sm text-zinc-400">
-              Store and validate ADO PATs, GitHub tokens, and service credentials
-            </p>
-          </div>
-          <button
-            onClick={() => { setShowForm(!showForm); setError(null); }}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500"
-          >
-            {showForm ? "Cancel" : "Add Secret"}
-          </button>
-        </div>
+      <Sidebar />
+      <main className="ml-60 flex-1 p-6">
+        <PageHeader
+          title="Secrets"
+          description="Store and validate ADO PATs, GitHub tokens, and service credentials"
+          action={
+            <Button
+              onClick={() => {
+                setShowPanel(!showPanel);
+                setError(null);
+              }}
+              variant={showPanel ? "outline" : "primary"}
+            >
+              {showPanel ? "Cancel" : "Add Secret"}
+            </Button>
+          }
+        />
 
-        {showForm && (
-          <form
-            onSubmit={handleCreate}
-            className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900/50 p-5"
-          >
-            {error && (
-              <div className="mb-4 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
-                {error}
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-4">
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium text-zinc-400">Name</span>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="my-ado-pat"
-                  className="input"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium text-zinc-400">Type</span>
-                <select value={type} onChange={(e) => handleTypeChange(e.target.value)} className="input">
-                  {SECRET_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              {currentFields.map((field) => (
-                <label key={field} className="block">
-                  <span className="mb-1.5 block text-xs font-medium text-zinc-400">
-                    {field.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                    {(field === "token" || field === "client_secret" || field === "private_key") ? "" : " (optional)"}
-                  </span>
-                  {field === "private_key" ? (
-                    <textarea
-                      value={fields[field] ?? ""}
-                      onChange={(e) => updateField(field, e.target.value)}
-                      placeholder={`Enter ${field}...`}
-                      rows={3}
-                      className="input"
-                      required={field === "private_key"}
-                    />
-                  ) : (
-                    <input
-                      type={field.includes("secret") || field === "token" || field === "private_key" ? "password" : "text"}
-                      value={fields[field] ?? ""}
-                      onChange={(e) => updateField(field, e.target.value)}
-                      placeholder={`Enter ${field}...`}
-                      className="input"
-                      required={field === "token" || field === "client_id" || field === "client_secret" || field === "tenant_id" || field === "app_id" || field === "installation_id" || field === "private_key"}
-                    />
-                  )}
-                </label>
-              ))}
-            </div>
-            <div className="mt-4">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-50"
-              >
-                {submitting ? "Saving..." : "Save Secret"}
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* Validation results panel */}
-        {validation && (
-          <div className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${validation.valid ? "bg-emerald-950 text-emerald-400" : "bg-red-950 text-red-400"}`}>
-                  {validation.valid ? "\u2713" : "\u2717"}
-                </span>
-                <h3 className="font-medium">
-                  Validation: <span className="text-zinc-400">{validation.name}</span>
-                </h3>
-              </div>
-              <button onClick={() => setValidation(null)} className="text-xs text-zinc-500 hover:text-zinc-300">Dismiss</button>
-            </div>
-            <div className="space-y-2">
-              {validation.checks.map((check, i) => (
-                <div key={i} className="flex items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-950/50 px-4 py-2.5">
-                  <span className={`mt-0.5 text-xs font-bold ${
-                    check.status === "passed" ? "text-emerald-400" :
-                    check.status === "failed" ? "text-red-400" :
-                    check.status === "warning" ? "text-amber-400" : "text-zinc-500"
-                  }`}>
-                    {check.status === "passed" ? "PASS" :
-                     check.status === "failed" ? "FAIL" :
-                     check.status === "warning" ? "WARN" : "SKIP"}
-                  </span>
-                  <div>
-                    <span className="text-xs font-medium text-zinc-300">{check.check}</span>
-                    <p className="text-xs text-zinc-500">{check.message}</p>
+        {/* Slide-down panel for adding secrets */}
+        {showPanel && (
+          <Card className="mb-6 overflow-hidden">
+            <CardHeader>
+              <CardTitle>Add New Secret</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreate} className="space-y-4">
+                {error && (
+                  <div className="rounded-lg border border-red-800/60 bg-red-950/50 px-4 py-3 text-sm text-red-400">
+                    {error}
                   </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Name"
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="my-ado-pat"
+                  />
+                  <Select
+                    label="Type"
+                    value={type}
+                    onChange={(e) => handleTypeChange(e.target.value)}
+                  >
+                    {SECRET_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
-              ))}
-            </div>
-          </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {currentFields.map((field) => {
+                    const label = field.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                    const required = isRequiredField(field);
+
+                    if (field === "private_key") {
+                      return (
+                        <div key={field} className="col-span-2 space-y-1.5">
+                          <label className="block text-xs font-medium text-muted-foreground">
+                            {label}
+                          </label>
+                          <textarea
+                            value={fields[field] ?? ""}
+                            onChange={(e) => updateField(field, e.target.value)}
+                            placeholder={`Enter ${field}...`}
+                            rows={3}
+                            required={required}
+                            className="w-full rounded-lg border border-input-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus-ring focus:border-primary resize-y min-h-[80px]"
+                          />
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <Input
+                        key={field}
+                        label={`${label}${!required ? " (optional)" : ""}`}
+                        type={field.includes("secret") || field === "token" ? "password" : "text"}
+                        value={fields[field] ?? ""}
+                        onChange={(e) => updateField(field, e.target.value)}
+                        placeholder={`Enter ${field}...`}
+                        required={required}
+                      />
+                    );
+                  })}
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <Button type="submit" disabled={submitting}>
+                    {submitting ? "Saving..." : "Save Secret"}
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => setShowPanel(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         )}
 
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-800 text-left text-xs text-zinc-500">
-                  <th className="px-5 py-3 font-medium">Name</th>
-                  <th className="px-5 py-3 font-medium">Type</th>
-                  <th className="px-5 py-3 font-medium">Created</th>
-                  <th className="px-5 py-3 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={4} className="px-5 py-8 text-center text-zinc-500">Loading...</td>
-                  </tr>
-                ) : secrets.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-5 py-8 text-center text-zinc-500">No secrets configured yet.</td>
-                  </tr>
-                ) : (
-                  secrets.map((s) => (
-                    <tr key={s.id} className="border-b border-zinc-800/50 transition hover:bg-zinc-800/30">
-                      <td className="px-5 py-3 font-medium">{s.name}</td>
-                      <td className="px-5 py-3">
-                        <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${
-                          s.secretType === "ado_pat" ? "border-blue-800 bg-blue-950 text-blue-400" :
-                          s.secretType === "github_token" ? "border-purple-800 bg-purple-950 text-purple-400" :
-                          s.secretType === "github_app" ? "border-violet-800 bg-violet-950 text-violet-400" :
-                          "border-amber-800 bg-amber-950 text-amber-400"
-                        }`}>
-                          {getTypeLabel(s.secretType)}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-zinc-500">
-                        {new Date(s.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-5 py-3 space-x-3">
-                        <button
+        {/* Validation results */}
+        {validation && (
+          <Card className="mb-6">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`flex h-7 w-7 items-center justify-center rounded-full ${
+                    validation.valid
+                      ? "bg-emerald-950/50 text-emerald-400"
+                      : "bg-red-950/50 text-red-400"
+                  }`}
+                >
+                  {validation.valid ? (
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  ) : (
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <CardTitle>
+                    Validation: <span className="text-muted-foreground font-normal">{validation.name}</span>
+                  </CardTitle>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setValidation(null)}>
+                Dismiss
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {validation.checks.map((check, i) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-3 rounded-lg border border-card-border bg-background px-4 py-3"
+                  >
+                    <span className={`mt-0.5 shrink-0 ${
+                      check.status === "passed" ? "text-emerald-400" :
+                      check.status === "failed" ? "text-red-400" :
+                      check.status === "warning" ? "text-amber-400" : "text-muted-foreground"
+                    }`}>
+                      {check.status === "passed" ? (
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : check.status === "failed" ? (
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : check.status === "warning" ? (
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                        </svg>
+                      ) : (
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )}
+                    </span>
+                    <div>
+                      <p className="text-xs font-medium text-foreground">{check.check}</p>
+                      <p className="text-xs text-muted-foreground">{check.message}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Secrets table */}
+        <Card>
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                </svg>
+                Loading secrets...
+              </div>
+            </div>
+          ) : secrets.length === 0 ? (
+            <EmptyState
+              icon={
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+              }
+              title="No secrets configured"
+              description="Add your ADO PATs, GitHub tokens, or service principal credentials to get started."
+              action={
+                <Button size="sm" onClick={() => setShowPanel(true)}>
+                  Add Secret
+                </Button>
+              }
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="w-36">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {secrets.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="font-medium text-foreground">
+                      {s.name}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getTypeBadgeVariant(s.secretType)}>
+                        {getTypeLabel(s.secretType)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(s.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleValidate(s.name)}
                           disabled={validating === s.name}
-                          className="text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                          className="text-primary hover:text-primary"
                         >
                           {validating === s.name ? "Testing..." : "Test"}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleDelete(s.name)}
-                          className="text-xs text-red-400 hover:text-red-300"
+                          className="text-destructive hover:text-destructive"
                         >
                           Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
       </main>
     </div>
   );

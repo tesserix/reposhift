@@ -4,8 +4,11 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { api, type Migration } from "@/lib/api";
 import { wsClient } from "@/lib/ws";
-import Nav from "@/components/nav";
-import Link from "next/link";
+import Sidebar from "@/components/sidebar";
+import { PageHeader } from "@/components/page-header";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/card";
+import { StatusBadge } from "@/components/badge";
+import { Button } from "@/components/button";
 
 export default function MigrationDetailPage() {
   const params = useParams();
@@ -32,7 +35,6 @@ export default function MigrationDetailPage() {
     }
     loadMigration();
 
-    // WebSocket for live updates
     wsClient.connect();
     const unsub = wsClient.on("migration_updated", (data) => {
       const updated = data as Migration;
@@ -41,7 +43,6 @@ export default function MigrationDetailPage() {
       }
     });
 
-    // Fallback polling every 5s
     const interval = setInterval(loadMigration, 5000);
 
     return () => {
@@ -69,7 +70,13 @@ export default function MigrationDetailPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-sm text-zinc-500">Loading...</p>
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+          Loading...
+        </div>
       </div>
     );
   }
@@ -79,11 +86,11 @@ export default function MigrationDetailPage() {
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
           {error && (
-            <div className="mb-4 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
+            <div className="mb-4 rounded-lg border border-red-800/60 bg-red-950/50 px-4 py-3 text-sm text-red-400">
               {error}
             </div>
           )}
-          <p className="text-sm text-zinc-500">Migration not found.</p>
+          <p className="text-sm text-muted-foreground">Migration not found.</p>
         </div>
       </div>
     );
@@ -95,192 +102,190 @@ export default function MigrationDetailPage() {
   const isFailed = m.status === "failed";
   const isDone = ["completed", "cancelled"].includes(m.status);
 
+  const progressColor =
+    m.status === "failed"
+      ? "bg-red-500"
+      : m.status === "completed"
+      ? "bg-primary"
+      : "bg-blue-500";
+
   return (
     <div className="flex min-h-screen">
-      <Nav />
-      <main className="ml-60 flex-1 p-8">
-        <div className="mb-6">
-          <Link
-            href="/migrations"
-            className="text-xs text-zinc-500 hover:text-zinc-300"
-          >
-            &larr; Back to migrations
-          </Link>
-          <div className="mt-2 flex items-center gap-4">
-            <h1 className="text-2xl font-bold">{m.display_name}</h1>
-            <StatusBadge status={m.status} />
-          </div>
+      <Sidebar />
+      <main className="ml-60 flex-1 p-6">
+        <PageHeader
+          title={m.display_name}
+          backHref="/migrations"
+          backLabel="Back to migrations"
+        />
+
+        {/* Status + Phase bar */}
+        <div className="mb-6 flex items-center gap-3">
+          <StatusBadge status={m.status} />
           {m.phase && (
-            <p className="mt-1 text-sm text-zinc-400">Phase: {m.phase}</p>
+            <span className="text-xs text-muted-foreground">
+              Phase: {m.phase}
+            </span>
           )}
+          <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+            Auto-refreshing
+          </div>
         </div>
 
         {error && (
-          <div className="mb-6 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
+          <div className="mb-6 rounded-lg border border-red-800/60 bg-red-950/50 px-4 py-3 text-sm text-red-400">
             {error}
           </div>
         )}
 
         {/* Progress */}
-        <div className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
-          <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="text-zinc-400">Overall Progress</span>
-            <span className="font-mono font-medium">{m.progress}%</span>
-          </div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-zinc-800">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                m.status === "failed"
-                  ? "bg-red-500"
-                  : m.status === "completed"
-                  ? "bg-emerald-500"
-                  : "bg-blue-500"
-              }`}
-              style={{ width: `${m.progress}%` }}
-            />
-          </div>
-          {m.error && (
-            <p className="mt-3 rounded-lg border border-red-800 bg-red-950/50 px-3 py-2 text-sm text-red-300">
-              {m.error}
-            </p>
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="mb-6 grid grid-cols-2 gap-4">
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
-            <h3 className="mb-3 text-xs font-semibold text-zinc-500">Source</h3>
-            <p className="text-sm">
-              {m.source_org}/{m.source_project}
-            </p>
-            {m.source_repos && m.source_repos.length > 0 && (
-              <p className="mt-1 text-xs text-zinc-500">
-                Repos: {m.source_repos.join(", ")}
-              </p>
+        <Card className="mb-6">
+          <CardContent className="pt-5">
+            <div className="mb-3 flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Overall Progress</span>
+              <span className="font-mono font-medium tabular-nums">{m.progress}%</span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ease-out ${progressColor}`}
+                style={{ width: `${m.progress}%` }}
+              />
+            </div>
+            {m.error && (
+              <div className="mt-4 rounded-lg border border-red-800/60 bg-red-950/40 px-4 py-3 text-sm text-red-400">
+                {m.error}
+              </div>
             )}
-          </div>
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
-            <h3 className="mb-3 text-xs font-semibold text-zinc-500">Target</h3>
-            <p className="text-sm">{m.target_owner}</p>
-            <p className="mt-1 text-xs text-zinc-500">
-              Created {new Date(m.created_at).toLocaleString()}
-            </p>
-          </div>
+          </CardContent>
+        </Card>
+
+        {/* Info cards */}
+        <div className="mb-6 grid grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="pt-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Source</p>
+              <p className="mt-2 text-sm font-medium text-foreground">
+                {m.source_org}/{m.source_project}
+              </p>
+              {m.source_repos && m.source_repos.length > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Repos: {m.source_repos.join(", ")}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Target</p>
+              <p className="mt-2 text-sm font-medium text-foreground">{m.target_owner}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Created {new Date(m.created_at).toLocaleString()}
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Actions */}
+        {/* Action toolbar */}
         {!isDone && (
           <div className="mb-6 flex gap-2">
             {isActive && (
-              <ActionButton
-                label="Pause"
-                loading={actionLoading === "pause"}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={actionLoading === "pause"}
                 onClick={() => runAction("pause", api.pauseMigration)}
-                className="bg-yellow-900/50 text-yellow-400 border-yellow-800 hover:bg-yellow-900"
-              />
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+                </svg>
+                {actionLoading === "pause" ? "Pausing..." : "Pause"}
+              </Button>
             )}
             {isPaused && (
-              <ActionButton
-                label="Resume"
-                loading={actionLoading === "resume"}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={actionLoading === "resume"}
                 onClick={() => runAction("resume", api.resumeMigration)}
-                className="bg-blue-900/50 text-blue-400 border-blue-800 hover:bg-blue-900"
-              />
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                </svg>
+                {actionLoading === "resume" ? "Resuming..." : "Resume"}
+              </Button>
             )}
             {(isActive || isPaused) && (
-              <ActionButton
-                label="Cancel"
-                loading={actionLoading === "cancel"}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={actionLoading === "cancel"}
                 onClick={() => runAction("cancel", api.cancelMigration)}
-                className="bg-zinc-800 text-zinc-400 border-zinc-700 hover:bg-zinc-700"
-              />
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                {actionLoading === "cancel" ? "Cancelling..." : "Cancel"}
+              </Button>
             )}
             {isFailed && (
-              <ActionButton
-                label="Retry"
-                loading={actionLoading === "retry"}
+              <Button
+                size="sm"
+                disabled={actionLoading === "retry"}
                 onClick={() => runAction("retry", api.retryMigration)}
-                className="bg-emerald-900/50 text-emerald-400 border-emerald-800 hover:bg-emerald-900"
-              />
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
+                </svg>
+                {actionLoading === "retry" ? "Retrying..." : "Retry"}
+              </Button>
             )}
           </div>
         )}
 
-        {/* Resources */}
+        {/* Resources table */}
         {m.resources && m.resources.length > 0 && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50">
-            <div className="border-b border-zinc-800 px-5 py-4">
-              <h2 className="text-sm font-semibold">Resources</h2>
-            </div>
-            <div className="divide-y divide-zinc-800/50">
+          <Card>
+            <CardHeader>
+              <CardTitle>Resources</CardTitle>
+            </CardHeader>
+            <div className="divide-y divide-card-border/50">
               {m.resources.map((r, i) => (
                 <div key={i} className="flex items-center gap-4 px-5 py-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{r.name}</p>
-                    <p className="text-xs text-zinc-500">{r.type}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{r.name}</p>
+                    <p className="text-xs text-muted-foreground">{r.type}</p>
                   </div>
                   <StatusBadge status={r.status} />
-                  <div className="flex w-32 items-center gap-2">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800">
+                  <div className="flex w-32 items-center gap-2.5">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
                       <div
-                        className="h-full rounded-full bg-emerald-500 transition-all"
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          r.status === "failed" ? "bg-red-500" :
+                          r.status === "completed" ? "bg-primary" : "bg-blue-500"
+                        }`}
                         style={{ width: `${r.progress}%` }}
                       />
                     </div>
-                    <span className="text-xs text-zinc-500">{r.progress}%</span>
+                    <span className="text-xs tabular-nums text-muted-foreground">{r.progress}%</span>
                   </div>
                   {r.error && (
-                    <span className="text-xs text-red-400" title={r.error}>
-                      error
+                    <span
+                      className="flex items-center gap-1 text-xs text-red-400"
+                      title={r.error}
+                    >
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                      </svg>
+                      Error
                     </span>
                   )}
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         )}
       </main>
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    completed: "bg-emerald-950 text-emerald-400 border-emerald-800",
-    running: "bg-blue-950 text-blue-400 border-blue-800",
-    in_progress: "bg-blue-950 text-blue-400 border-blue-800",
-    failed: "bg-red-950 text-red-400 border-red-800",
-    paused: "bg-yellow-950 text-yellow-400 border-yellow-800",
-    cancelled: "bg-zinc-800 text-zinc-400 border-zinc-700",
-    pending: "bg-zinc-800 text-zinc-400 border-zinc-700",
-  };
-  const colorClass = colors[status] || "bg-zinc-800 text-zinc-400 border-zinc-700";
-
-  return (
-    <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${colorClass}`}>
-      {status.replace(/_/g, " ")}
-    </span>
-  );
-}
-
-function ActionButton({
-  label,
-  loading,
-  onClick,
-  className,
-}: {
-  label: string;
-  loading: boolean;
-  onClick: () => void;
-  className: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={loading}
-      className={`rounded-lg border px-4 py-1.5 text-sm font-medium transition disabled:opacity-50 ${className}`}
-    >
-      {loading ? `${label}...` : label}
-    </button>
   );
 }

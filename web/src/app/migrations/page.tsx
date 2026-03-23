@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { api, type Migration } from "@/lib/api";
-import Nav from "@/components/nav";
+import Sidebar from "@/components/sidebar";
+import { PageHeader } from "@/components/page-header";
+import { Card, CardFooter } from "@/components/card";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/table";
+import { StatusBadge } from "@/components/badge";
+import { Button } from "@/components/button";
+import { EmptyState } from "@/components/empty-state";
 import Link from "next/link";
 
 export default function MigrationsPage() {
@@ -40,158 +46,148 @@ export default function MigrationsPage() {
 
   return (
     <div className="flex min-h-screen">
-      <Nav />
-      <main className="ml-60 flex-1 p-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Migrations</h1>
-            <p className="mt-1 text-sm text-zinc-400">
-              Manage your ADO to GitHub migrations
-            </p>
-          </div>
-          <Link
-            href="/migrations/new"
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500"
-          >
-            New Migration
-          </Link>
-        </div>
+      <Sidebar />
+      <main className="ml-60 flex-1 p-6">
+        <PageHeader
+          title="Migrations"
+          description="Manage your ADO to GitHub migrations"
+          action={
+            <Link href="/migrations/new">
+              <Button>Create Migration</Button>
+            </Link>
+          }
+        />
 
         {error && (
-          <div className="mb-6 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
+          <div className="mb-6 rounded-lg border border-red-800/60 bg-red-950/50 px-4 py-3 text-sm text-red-400">
             {error}
           </div>
         )}
 
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-800 text-left text-xs text-zinc-500">
-                  <th className="px-5 py-3 font-medium">Name</th>
-                  <th className="px-5 py-3 font-medium">Source</th>
-                  <th className="px-5 py-3 font-medium">Target</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium">Progress</th>
-                  <th className="px-5 py-3 font-medium">Created</th>
-                  <th className="px-5 py-3 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={7} className="px-5 py-8 text-center text-zinc-500">
-                      Loading...
-                    </td>
-                  </tr>
-                ) : migrations.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-5 py-8 text-center text-zinc-500">
-                      No migrations found.
-                    </td>
-                  </tr>
-                ) : (
-                  migrations.map((m) => (
-                    <tr
-                      key={m.id}
-                      className="border-b border-zinc-800/50 transition hover:bg-zinc-800/30"
-                    >
-                      <td className="px-5 py-3">
+        <Card>
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                </svg>
+                Loading migrations...
+              </div>
+            </div>
+          ) : migrations.length === 0 ? (
+            <EmptyState
+              icon={
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                </svg>
+              }
+              title="No migrations found"
+              description="Create your first migration to start moving repositories from Azure DevOps to GitHub."
+              action={
+                <Link href="/migrations/new">
+                  <Button size="sm">Create Migration</Button>
+                </Link>
+              }
+            />
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Source</TableHead>
+                    <TableHead>Target</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Progress</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="w-20">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {migrations.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell>
                         <Link
                           href={`/migrations/${m.id}`}
-                          className="font-medium hover:text-emerald-400"
+                          className="font-medium text-foreground transition-colors hover:text-primary"
                         >
                           {m.display_name}
                         </Link>
-                      </td>
-                      <td className="px-5 py-3 text-zinc-400">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
                         {m.source_org}/{m.source_project}
-                      </td>
-                      <td className="px-5 py-3 text-zinc-400">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
                         {m.target_owner}
-                      </td>
-                      <td className="px-5 py-3">
+                      </TableCell>
+                      <TableCell>
                         <StatusBadge status={m.status} />
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-zinc-800">
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-secondary">
                             <div
-                              className="h-full rounded-full bg-emerald-500 transition-all"
+                              className="h-full rounded-full bg-primary transition-all duration-500"
                               style={{ width: `${m.progress}%` }}
                             />
                           </div>
-                          <span className="text-xs text-zinc-500">
+                          <span className="text-xs tabular-nums text-muted-foreground">
                             {m.progress}%
                           </span>
                         </div>
-                      </td>
-                      <td className="px-5 py-3 text-zinc-500">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
                         {new Date(m.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-5 py-3">
-                        <button
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => {
                             if (confirm("Delete this migration?")) {
                               api.deleteMigration(m.id).then(loadMigrations);
                             }
                           }}
-                          className="text-xs text-red-400 hover:text-red-300"
+                          className="text-destructive hover:text-destructive"
                         >
                           Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-zinc-800 px-5 py-3">
-              <p className="text-xs text-zinc-500">
-                Page {page} of {totalPages} ({total} total)
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="rounded-lg px-3 py-1 text-xs text-zinc-400 transition hover:bg-zinc-800 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="rounded-lg px-3 py-1 text-xs text-zinc-400 transition hover:bg-zinc-800 disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
+              {totalPages > 1 && (
+                <CardFooter className="justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Page {page} of {totalPages} ({total} total)
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </CardFooter>
+              )}
+            </>
           )}
-        </div>
+        </Card>
       </main>
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    completed: "bg-emerald-950 text-emerald-400 border-emerald-800",
-    running: "bg-blue-950 text-blue-400 border-blue-800",
-    in_progress: "bg-blue-950 text-blue-400 border-blue-800",
-    failed: "bg-red-950 text-red-400 border-red-800",
-    paused: "bg-yellow-950 text-yellow-400 border-yellow-800",
-    cancelled: "bg-zinc-800 text-zinc-400 border-zinc-700",
-    pending: "bg-zinc-800 text-zinc-400 border-zinc-700",
-  };
-  const colorClass = colors[status] || "bg-zinc-800 text-zinc-400 border-zinc-700";
-
-  return (
-    <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${colorClass}`}>
-      {status.replace(/_/g, " ")}
-    </span>
   );
 }

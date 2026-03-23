@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { api, type Secret } from "@/lib/api";
-import Nav from "@/components/nav";
+import Sidebar from "@/components/sidebar";
+import { PageHeader } from "@/components/page-header";
+import { Card, CardContent } from "@/components/card";
+import { Input } from "@/components/input";
+import { Select } from "@/components/select";
+import { Button } from "@/components/button";
 
 export default function NewMigrationPage() {
   const [secrets, setSecrets] = useState<Secret[]>([]);
@@ -17,7 +22,6 @@ export default function NewMigrationPage() {
   const [adoSecretName, setAdoSecretName] = useState("");
   const [githubSecretName, setGithubSecretName] = useState("");
 
-  // Branch filtering
   const [branchFilterMode, setBranchFilterMode] = useState<"" | "include" | "exclude">("");
   const [branchInput, setBranchInput] = useState("");
   const [branches, setBranches] = useState<string[]>([]);
@@ -105,212 +109,205 @@ export default function NewMigrationPage() {
 
   return (
     <div className="flex min-h-screen">
-      <Nav />
-      <main className="ml-60 flex-1 p-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">New Migration</h1>
-          <p className="mt-1 text-sm text-zinc-400">
-            Configure a new ADO to GitHub migration
-          </p>
-        </div>
+      <Sidebar />
+      <main className="ml-60 flex-1 p-6">
+        <PageHeader
+          title="New Migration"
+          description="Configure a new ADO to GitHub migration"
+          backHref="/migrations"
+          backLabel="Back to migrations"
+        />
 
-        <form
-          onSubmit={handleSubmit}
-          className="max-w-2xl space-y-6 rounded-xl border border-zinc-800 bg-zinc-900/50 p-6"
-        >
+        <form onSubmit={handleSubmit} className="max-w-2xl space-y-6">
           {error && (
-            <div className="rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
+            <div className="rounded-lg border border-red-800/60 bg-red-950/50 px-4 py-3 text-sm text-red-400">
               {error}
             </div>
           )}
 
-          <Field label="Display Name">
-            <input
-              type="text"
-              required
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="My migration"
-              className="input"
-            />
-          </Field>
+          {/* General */}
+          <Card>
+            <CardContent className="pt-5 space-y-3">
+              <Input
+                label="Display Name"
+                type="text"
+                required
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="My migration"
+              />
+            </CardContent>
+          </Card>
 
           {/* Source */}
-          <div className="border-t border-zinc-800 pt-6">
-            <h3 className="mb-4 text-sm font-semibold text-zinc-300">
-              Source (Azure DevOps)
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Organization">
-                <input
+          <Card>
+            <div className="px-5 pt-5 pb-1">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Source (Azure DevOps)
+              </p>
+            </div>
+            <CardContent className="space-y-3 pt-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="Organization"
                   type="text"
                   required
                   value={sourceOrg}
                   onChange={(e) => setSourceOrg(e.target.value)}
                   placeholder="my-ado-org"
-                  className="input"
                 />
-              </Field>
-              <Field label="Project">
-                <input
+                <Input
+                  label="Project"
                   type="text"
                   required
                   value={sourceProject}
                   onChange={(e) => setSourceProject(e.target.value)}
                   placeholder="my-project"
-                  className="input"
                 />
-              </Field>
-            </div>
-            <div className="mt-4">
-              <Field label="Repositories (comma separated, leave empty for all)">
-                <input
-                  type="text"
-                  value={sourceRepos}
-                  onChange={(e) => setSourceRepos(e.target.value)}
-                  placeholder="repo1, repo2, repo3"
-                  className="input"
-                />
-              </Field>
-            </div>
-          </div>
+              </div>
+              <Input
+                label="Repositories"
+                type="text"
+                value={sourceRepos}
+                onChange={(e) => setSourceRepos(e.target.value)}
+                placeholder="repo1, repo2, repo3"
+                helperText="Comma separated. Leave empty to migrate all repositories."
+              />
+            </CardContent>
+          </Card>
 
           {/* Target */}
-          <div className="border-t border-zinc-800 pt-6">
-            <h3 className="mb-4 text-sm font-semibold text-zinc-300">
-              Target (GitHub)
-            </h3>
-            <Field label="GitHub Owner (org or user)">
-              <input
+          <Card>
+            <div className="px-5 pt-5 pb-1">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Target (GitHub)
+              </p>
+            </div>
+            <CardContent className="space-y-3 pt-3">
+              <Input
+                label="GitHub Owner"
                 type="text"
                 required
                 value={targetOwner}
                 onChange={(e) => setTargetOwner(e.target.value)}
                 placeholder="my-github-org"
-                className="input"
+                helperText="Organization or user account."
               />
-            </Field>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Branch Filtering */}
-          <div className="border-t border-zinc-800 pt-6">
-            <h3 className="mb-1 text-sm font-semibold text-zinc-300">
-              Branch Filtering
-            </h3>
-            <p className="mb-4 text-xs text-zinc-500">
-              Control which branches are migrated. By default all branches are included.
-            </p>
-
-            <div className="mb-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setBranchFilterMode("")}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-                  branchFilterMode === ""
-                    ? "border-emerald-700 bg-emerald-950 text-emerald-400"
-                    : "border-zinc-700 text-zinc-400 hover:border-zinc-600"
-                }`}
-              >
-                All branches
-              </button>
-              <button
-                type="button"
-                onClick={() => setBranchFilterMode("include")}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-                  branchFilterMode === "include"
-                    ? "border-blue-700 bg-blue-950 text-blue-400"
-                    : "border-zinc-700 text-zinc-400 hover:border-zinc-600"
-                }`}
-              >
-                Include only
-              </button>
-              <button
-                type="button"
-                onClick={() => setBranchFilterMode("exclude")}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-                  branchFilterMode === "exclude"
-                    ? "border-amber-700 bg-amber-950 text-amber-400"
-                    : "border-zinc-700 text-zinc-400 hover:border-zinc-600"
-                }`}
-              >
-                Exclude
-              </button>
+          <Card>
+            <div className="px-5 pt-5 pb-1">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Branch Filtering
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Control which branches are migrated. By default all branches are included.
+              </p>
             </div>
-
-            {branchFilterMode !== "" && (
-              <div>
-                <p className="mb-2 text-xs text-zinc-400">
-                  {branchFilterMode === "include"
-                    ? "Only these branches will be migrated. Supports glob patterns (e.g. feature/*)."
-                    : "These branches will be skipped. The default branch is never excluded. Supports glob patterns."}
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={branchInput}
-                    onChange={(e) => setBranchInput(e.target.value)}
-                    onKeyDown={handleBranchKeyDown}
-                    placeholder={
-                      branchFilterMode === "include"
-                        ? "e.g. main, develop, release/*"
-                        : "e.g. dependabot/*, feature/legacy-*"
-                    }
-                    className="input flex-1"
-                  />
-                  <button
-                    type="button"
-                    onClick={addBranch}
-                    className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-700"
-                  >
-                    Add
-                  </button>
-                </div>
-
-                {branches.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {branches.map((b) => (
-                      <span
-                        key={b}
-                        className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium ${
-                          branchFilterMode === "include"
-                            ? "border-blue-800 bg-blue-950/50 text-blue-400"
-                            : "border-amber-800 bg-amber-950/50 text-amber-400"
-                        }`}
-                      >
-                        {b}
-                        <button
-                          type="button"
-                          onClick={() => removeBranch(b)}
-                          className="ml-0.5 text-zinc-500 hover:text-zinc-300"
-                        >
-                          &times;
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {branches.length === 0 && (
-                  <p className="mt-2 text-xs text-zinc-600">
-                    No branches added yet. Add branch names or patterns above.
-                  </p>
-                )}
+            <CardContent className="pt-3">
+              <div className="mb-3 flex gap-2">
+                {(["", "include", "exclude"] as const).map((mode) => {
+                  const labels = { "": "All branches", include: "Include only", exclude: "Exclude" };
+                  const isActive = branchFilterMode === mode;
+                  const activeStyles: Record<string, string> = {
+                    "": "border-primary/50 bg-primary/10 text-primary",
+                    include: "border-blue-700/50 bg-blue-950/50 text-blue-400",
+                    exclude: "border-amber-700/50 bg-amber-950/50 text-amber-400",
+                  };
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setBranchFilterMode(mode)}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        isActive
+                          ? activeStyles[mode]
+                          : "border-border text-muted-foreground hover:border-input-border hover:text-foreground"
+                      }`}
+                    >
+                      {labels[mode]}
+                    </button>
+                  );
+                })}
               </div>
-            )}
-          </div>
+
+              {branchFilterMode !== "" && (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    {branchFilterMode === "include"
+                      ? "Only these branches will be migrated. Supports glob patterns (e.g. feature/*)."
+                      : "These branches will be skipped. The default branch is never excluded. Supports glob patterns."}
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={branchInput}
+                      onChange={(e) => setBranchInput(e.target.value)}
+                      onKeyDown={handleBranchKeyDown}
+                      placeholder={
+                        branchFilterMode === "include"
+                          ? "e.g. main, develop, release/*"
+                          : "e.g. dependabot/*, feature/legacy-*"
+                      }
+                      className="flex-1 rounded-lg border border-input-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus-ring focus:border-primary"
+                    />
+                    <Button type="button" variant="secondary" size="default" onClick={addBranch}>
+                      Add
+                    </Button>
+                  </div>
+
+                  {branches.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {branches.map((b) => (
+                        <span
+                          key={b}
+                          className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium ${
+                            branchFilterMode === "include"
+                              ? "border-blue-800/50 bg-blue-950/40 text-blue-400"
+                              : "border-amber-800/50 bg-amber-950/40 text-amber-400"
+                          }`}
+                        >
+                          {b}
+                          <button
+                            type="button"
+                            onClick={() => removeBranch(b)}
+                            className="text-current opacity-50 transition-opacity hover:opacity-100"
+                          >
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {branches.length === 0 && (
+                    <p className="text-xs text-muted-foreground/60">
+                      No branches added yet. Add branch names or patterns above.
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Credentials */}
-          <div className="border-t border-zinc-800 pt-6">
-            <h3 className="mb-4 text-sm font-semibold text-zinc-300">
-              Credentials
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="ADO Secret">
-                <select
+          <Card>
+            <div className="px-5 pt-5 pb-1">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Credentials
+              </p>
+            </div>
+            <CardContent className="space-y-3 pt-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Select
+                  label="ADO Secret"
                   required
                   value={adoSecretName}
                   onChange={(e) => setAdoSecretName(e.target.value)}
-                  className="input"
                 >
                   <option value="">Select ADO credential...</option>
                   {adoSecrets.map((s) => (
@@ -318,14 +315,12 @@ export default function NewMigrationPage() {
                       {s.name}
                     </option>
                   ))}
-                </select>
-              </Field>
-              <Field label="GitHub Secret">
-                <select
+                </Select>
+                <Select
+                  label="GitHub Secret"
                   required
                   value={githubSecretName}
                   onChange={(e) => setGithubSecretName(e.target.value)}
-                  className="input"
                 >
                   <option value="">Select GitHub credential...</option>
                   {githubSecrets.map((s) => (
@@ -333,53 +328,30 @@ export default function NewMigrationPage() {
                       {s.name}
                     </option>
                   ))}
-                </select>
-              </Field>
-            </div>
-            {secrets.length === 0 && (
-              <p className="mt-2 text-xs text-zinc-500">
-                No secrets configured.{" "}
-                <a href="/secrets" className="text-emerald-400 hover:underline">
-                  Add secrets first
-                </a>
-              </p>
-            )}
-          </div>
+                </Select>
+              </div>
+              {secrets.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No secrets configured.{" "}
+                  <a href="/secrets" className="text-primary hover:underline">
+                    Add secrets first
+                  </a>
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
-          <div className="flex gap-3 border-t border-zinc-800 pt-6">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-50"
-            >
+          {/* Actions */}
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={submitting}>
               {submitting ? "Creating..." : "Create Migration"}
-            </button>
-            <a
-              href="/migrations"
-              className="rounded-lg px-5 py-2 text-sm text-zinc-400 transition hover:bg-zinc-800"
-            >
+            </Button>
+            <Button variant="ghost" type="button" onClick={() => (window.location.href = "/migrations")}>
               Cancel
-            </a>
+            </Button>
           </div>
         </form>
       </main>
     </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-medium text-zinc-400">
-        {label}
-      </span>
-      {children}
-    </label>
   );
 }
