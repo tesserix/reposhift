@@ -1,0 +1,470 @@
+{
+  "dashboard": {
+    "title": "ADO to GitHub Migration - Performance",
+    "description": "Controller performance, API calls, reconciliation metrics",
+    "tags": ["ado-github-migration", "performance"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Reconciliation Rate",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(rate(ado_github_migration_reconciliation_duration_seconds_count[5m]))",
+            "legendFormat": "Reconciles/sec",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "decimals": 2,
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 5},
+                {"color": "orange", "value": 10},
+                {"color": "red", "value": 20}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Avg Reconciliation Duration",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(ado_github_migration_reconciliation_duration_seconds_sum[5m]) / rate(ado_github_migration_reconciliation_duration_seconds_count[5m])",
+            "legendFormat": "Avg Duration",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "decimals": 2,
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 1},
+                {"color": "orange", "value": 5},
+                {"color": "red", "value": 10}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "API Requests/sec",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(rate(ado_github_migration_api_requests_total[5m]))",
+            "legendFormat": "Requests/sec",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "decimals": 2,
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 10},
+                {"color": "orange", "value": 50},
+                {"color": "red", "value": 100}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Reconciles Skipped (Optimization)",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(rate(ado_github_migration_reconciliations_skipped_total[5m]))",
+            "legendFormat": "Skipped/sec",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "decimals": 2,
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null}
+              ]
+            }
+          }
+        },
+        "description": "Higher is better - means optimization is working"
+      },
+      {
+        "id": 5,
+        "title": "Reconciliation Duration by Controller",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum by (controller, le) (rate(ado_github_migration_reconciliation_duration_seconds_bucket[5m])))",
+            "legendFormat": "{{controller}} (p50)",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (controller, le) (rate(ado_github_migration_reconciliation_duration_seconds_bucket[5m])))",
+            "legendFormat": "{{controller}} (p95)",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum by (controller, le) (rate(ado_github_migration_reconciliation_duration_seconds_bucket[5m])))",
+            "legendFormat": "{{controller}} (p99)",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "fillOpacity": 0,
+              "lineInterpolation": "smooth",
+              "lineWidth": 2
+            },
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Reconciliation Rate by Controller",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+        "targets": [
+          {
+            "expr": "sum by (controller) (rate(ado_github_migration_reconciliation_duration_seconds_count[5m]))",
+            "legendFormat": "{{controller}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never"
+            },
+            "unit": "ops"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "API Request Duration by Service",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum by (service, le) (rate(ado_github_migration_api_request_duration_seconds_bucket[5m])))",
+            "legendFormat": "{{service}} (p50)",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (service, le) (rate(ado_github_migration_api_request_duration_seconds_bucket[5m])))",
+            "legendFormat": "{{service}} (p95)",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum by (service, le) (rate(ado_github_migration_api_request_duration_seconds_bucket[5m])))",
+            "legendFormat": "{{service}} (p99)",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "fillOpacity": 0,
+              "lineInterpolation": "smooth",
+              "lineWidth": 2
+            },
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "API Requests by Service and Status",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+        "targets": [
+          {
+            "expr": "sum by (service, status) (rate(ado_github_migration_api_requests_total[5m]))",
+            "legendFormat": "{{service}} ({{status}})",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "stacking": {
+                "mode": "normal"
+              }
+            },
+            "unit": "reqps"
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byRegexp", "options": ".*success.*"},
+              "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]
+            },
+            {
+              "matcher": {"id": "byRegexp", "options": ".*error.*"},
+              "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]
+            },
+            {
+              "matcher": {"id": "byRegexp", "options": ".*rate_limited.*"},
+              "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]
+            }
+          ]
+        }
+      },
+      {
+        "id": 9,
+        "title": "Status Update Performance",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 22},
+        "targets": [
+          {
+            "expr": "sum by (controller) (rate(ado_github_migration_status_updates_total[5m]))",
+            "legendFormat": "{{controller}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "bars",
+              "fillOpacity": 80,
+              "lineWidth": 0
+            },
+            "unit": "ops"
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Status Update Conflicts",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 22},
+        "targets": [
+          {
+            "expr": "sum by (controller) (rate(ado_github_migration_status_update_conflicts_total[5m]))",
+            "legendFormat": "{{controller}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "smooth",
+              "lineWidth": 2
+            },
+            "unit": "ops"
+          }
+        },
+        "description": "Lower is better - indicates less contention"
+      },
+      {
+        "id": 11,
+        "title": "Status Update Retry Distribution",
+        "type": "heatmap",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 30},
+        "targets": [
+          {
+            "expr": "sum by (le, controller) (rate(ado_github_migration_status_update_retries_bucket[5m]))",
+            "legendFormat": "{{controller}}",
+            "refId": "A",
+            "format": "heatmap"
+          }
+        ],
+        "options": {
+          "calculate": false,
+          "cellGap": 2,
+          "color": {
+            "exponent": 0.5,
+            "fill": "dark-orange",
+            "mode": "scheme",
+            "scale": "exponential",
+            "scheme": "Oranges",
+            "steps": 64
+          },
+          "legend": {
+            "show": true
+          },
+          "tooltip": {
+            "show": true,
+            "yHistogram": true
+          },
+          "yAxis": {
+            "axisPlacement": "left",
+            "reverse": false,
+            "unit": "short"
+          }
+        },
+        "description": "Distribution of retry attempts - lower is better"
+      },
+      {
+        "id": 12,
+        "title": "Queue Depth by Controller",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 30},
+        "targets": [
+          {
+            "expr": "ado_github_migration_queue_depth",
+            "legendFormat": "{{controller}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "fillOpacity": 20,
+              "lineInterpolation": "smooth",
+              "lineWidth": 2
+            },
+            "unit": "short"
+          }
+        },
+        "description": "Items waiting in reconciliation queue"
+      },
+      {
+        "id": 13,
+        "title": "Queue Latency by Controller",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 38},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum by (controller, le) (rate(ado_github_migration_queue_latency_seconds_bucket[5m])))",
+            "legendFormat": "{{controller}} (p50)",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (controller, le) (rate(ado_github_migration_queue_latency_seconds_bucket[5m])))",
+            "legendFormat": "{{controller}} (p95)",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum by (controller, le) (rate(ado_github_migration_queue_latency_seconds_bucket[5m])))",
+            "legendFormat": "{{controller}} (p99)",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "fillOpacity": 0,
+              "lineInterpolation": "smooth",
+              "lineWidth": 2
+            },
+            "unit": "s"
+          }
+        },
+        "description": "Time items wait in queue before reconciliation"
+      },
+      {
+        "id": 14,
+        "title": "Cache Performance",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 38},
+        "targets": [
+          {
+            "expr": "sum by (cache_type) (rate(ado_github_migration_cache_hits_total[5m])) / (sum by (cache_type) (rate(ado_github_migration_cache_hits_total[5m])) + sum by (cache_type) (rate(ado_github_migration_cache_misses_total[5m]))) * 100",
+            "legendFormat": "{{cache_type}} Hit Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "fillOpacity": 20,
+              "lineInterpolation": "smooth",
+              "lineWidth": 2
+            },
+            "unit": "percent",
+            "max": 100,
+            "min": 0
+          }
+        },
+        "description": "Higher is better - indicates effective caching"
+      }
+    ]
+  }
+}

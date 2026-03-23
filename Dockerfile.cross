@@ -1,0 +1,66 @@
+# Build the manager binary
+FROM --platform=${BUILDPLATFORM} golang:1.25-alpine AS builder
+
+WORKDIR /workspace
+
+# Set build arguments
+ARG VERSION=dev
+ARG BUILD_DATE=unknown
+ARG GIT_COMMIT=unknown
+
+# Install necessary build tools
+RUN apk add --no-cache git make
+
+# Copy go mod and sum files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy the source code
+COPY . .
+
+# Build the binary with version information
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-X main.version=${VERSION} -X main.buildDate=${BUILD_DATE} -X main.gitCommit=${GIT_COMMIT} -w -s" \
+    -a -installsuffix cgo -o manager cmd/main.go
+
+# Use Alpine as minimal base image with git support
+FROM alpine:3.19
+
+# Set metadata
+LABEL org.opencontainers.image.title="ADO to Git Migration Operator"
+LABEL org.opencontainers.image.description="Kubernetes operator for migrating Azure DevOps resources to GitHub"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.revision="${GIT_COMMIT}"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+
+# Install git and ca-certificates
+RUN apk add --no-cache git ca-certificates
+
+# Create nonroot user
+RUN addgroup -g 65532 -S nonroot && adduser -u 65532 -S nonroot -G nonroot
+
+WORKDIR /
+
+# Copy the binary from builder
+COPY --from=builder /workspace/manager .
+
+# Copy documentation
+COPY --from=builder /workspace/docs /docs/
+
+# Copy migration templates
+COPY --from=builder /workspace/CLAIM_TEMPLATES /CLAIM_TEMPLATES/
+
+# Use nonroot user
+USER 65532:65532
+
+# Set environment variables
+ENV LOG_LEVEL=info
+ENV ENABLE_METRICS=true
+
+# Expose ports
+EXPOSE 8080 8081 9443
+
+ENTRYPOINT ["/manager"]

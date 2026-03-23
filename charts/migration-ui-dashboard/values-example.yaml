@@ -1,0 +1,117 @@
+# Example values file for Migration UI Dashboard
+# Copy this file and customize for your environment
+
+# =============================================================================
+# DOCKER IMAGE
+# =============================================================================
+image:
+  # Your container registry and image name
+  repository: myregistry.azurecr.io/migration-ui-dashboard
+  pullPolicy: IfNotPresent
+  # Image tag - change this when deploying new versions
+  tag: "1.0.0"
+
+# =============================================================================
+# REPLICAS
+# =============================================================================
+# How many dashboard pods to run (for high availability)
+replicaCount: 2
+
+# =============================================================================
+# SERVICE
+# =============================================================================
+service:
+  type: ClusterIP          # Options: ClusterIP, LoadBalancer, NodePort
+  port: 80                 # External service port
+  targetPort: 3000         # Your UI app port (must match your app)
+
+# =============================================================================
+# BACKEND CONNECTIONS (IMPORTANT!)
+# =============================================================================
+backend:
+  # Migration operator backend service
+  operatorService:
+    # Service hostname (format: service-name.namespace.svc.cluster.local)
+    host: ado-migration-operator.ado-migration-operator.svc.cluster.local
+    port: 8080
+    # API endpoints
+    healthEndpoint: /health
+    metricsEndpoint: /metrics
+    migrationsEndpoint: /api/v1/migrations
+
+  # Kubernetes API access (for reading migration jobs directly)
+  kubernetesApi:
+    enabled: true                  # Set false if you only want HTTP API
+    namespace: ado-migration-operator   # Where migrations run
+
+# =============================================================================
+# INGRESS (External Access)
+# =============================================================================
+ingress:
+  enabled: true              # Set true to expose dashboard externally
+  className: nginx           # Your ingress controller (nginx, traefik, etc.)
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: migration-dashboard.mycompany.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: migration-dashboard-tls
+      hosts:
+        - migration-dashboard.mycompany.com
+
+# =============================================================================
+# ENVIRONMENT VARIABLES
+# =============================================================================
+env:
+  NODE_ENV: production
+  PORT: "3000"
+  ENABLE_METRICS: "true"
+  ENABLE_LOGS: "true"
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+resources:
+  requests:
+    cpu: 200m         # Minimum CPU
+    memory: 256Mi     # Minimum memory
+  limits:
+    cpu: 1000m        # Maximum CPU
+    memory: 1Gi       # Maximum memory
+
+# =============================================================================
+# HEALTH CHECKS
+# =============================================================================
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+# =============================================================================
+# SECURITY
+# =============================================================================
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# =============================================================================
+# SERVICE ACCOUNT
+# =============================================================================
+serviceAccount:
+  create: true
+  name: migration-ui-dashboard
+  annotations: {}

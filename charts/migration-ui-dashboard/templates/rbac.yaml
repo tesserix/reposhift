@@ -1,0 +1,56 @@
+{{- if .Values.backend.kubernetesApi.enabled -}}
+---
+# Role to read migration resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "migration-ui-dashboard.fullname" . }}-reader
+  namespace: {{ .Values.backend.kubernetesApi.namespace }}
+  labels:
+    {{- include "migration-ui-dashboard.labels" . | nindent 4 }}
+rules:
+# Read migration jobs
+- apiGroups:
+  - migration.ado-to-git-migration.io
+  resources:
+  - migrationjobs
+  - batchmigrations
+  verbs:
+  - get
+  - list
+  - watch
+# Read pods (for migration worker status)
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+# Read pod logs (for debugging)
+- apiGroups:
+  - ""
+  resources:
+  - pods/log
+  verbs:
+  - get
+
+---
+# Bind the role to the service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "migration-ui-dashboard.fullname" . }}-reader
+  namespace: {{ .Values.backend.kubernetesApi.namespace }}
+  labels:
+    {{- include "migration-ui-dashboard.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "migration-ui-dashboard.fullname" . }}-reader
+subjects:
+- kind: ServiceAccount
+  name: {{ include "migration-ui-dashboard.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

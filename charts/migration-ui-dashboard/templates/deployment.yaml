@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "migration-ui-dashboard.fullname" . }}
+  labels:
+    {{- include "migration-ui-dashboard.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "migration-ui-dashboard.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "migration-ui-dashboard.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "migration-ui-dashboard.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      containers:
+      - name: dashboard
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.targetPort }}
+          protocol: TCP
+        env:
+        # Basic environment variables
+        - name: NODE_ENV
+          value: {{ .Values.env.NODE_ENV | quote }}
+        - name: PORT
+          value: {{ .Values.env.PORT | quote }}
+        - name: ENABLE_METRICS
+          value: {{ .Values.env.ENABLE_METRICS | quote }}
+        - name: ENABLE_LOGS
+          value: {{ .Values.env.ENABLE_LOGS | quote }}
+        # Backend API URL from configmap
+        - name: BACKEND_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "migration-ui-dashboard.fullname" . }}-config
+              key: backend-api-url
+        # Operator service details
+        - name: OPERATOR_SERVICE_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "migration-ui-dashboard.fullname" . }}-config
+              key: operator-service-host
+        - name: OPERATOR_SERVICE_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "migration-ui-dashboard.fullname" . }}-config
+              key: operator-service-port
+        # Kubernetes namespace for migrations
+        - name: MIGRATION_NAMESPACE
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "migration-ui-dashboard.fullname" . }}-config
+              key: migration-namespace
+        livenessProbe:
+          {{- toYaml .Values.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.readinessProbe | nindent 10 }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}

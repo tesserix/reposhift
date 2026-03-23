@@ -1,0 +1,65 @@
+Thank you for installing {{ .Chart.Name }}.
+
+The Azure DevOps to GitHub Migration Operator has been deployed to your cluster.
+
+{{- if .Values.ingress.enabled }}
+You can access the API at:
+{{- range $host := .Values.ingress.hosts }}
+  https://{{ $host.host }}
+{{- end }}
+{{- else }}
+To access the API, run these commands:
+
+  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "ado-git-migration.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Release.Namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:$CONTAINER_PORT
+
+Then access the API at: http://localhost:8080/api/v1/utils/health
+{{- end }}
+
+To create a migration, first create the required secrets:
+
+1. Azure DevOps authentication (Service Principal):
+
+  kubectl create secret generic azure-sp-secret \
+    --namespace={{ .Values.migrationNamespace.name }} \
+    --from-literal=client-id="your-azure-client-id" \
+    --from-literal=client-secret="your-azure-client-secret" \
+    --from-literal=tenant-id="your-azure-tenant-id"
+
+2. GitHub authentication - Choose ONE option:
+
+   Option A: GitHub App (Recommended - 5,000 req/hr rate limit):
+
+   kubectl create secret generic github-app-secret \
+     --namespace={{ .Values.migrationNamespace.name }} \
+     --from-literal=app-id="your-github-app-id" \
+     --from-literal=installation-id="your-installation-id" \
+     --from-literal=private-key="$(cat your-app-private-key.pem)"
+
+   Option B: Personal Access Token (Simpler - 1,000 req/hr):
+
+   kubectl create secret generic github-token-secret \
+     --namespace={{ .Values.migrationNamespace.name }} \
+     --from-literal=token="your-github-pat"
+
+Then create a migration resource:
+
+  # Auto-discover and migrate all repositories
+  kubectl apply -f CLAIM_TEMPLATES/01-auto-discovery-repo-migration.yaml
+
+  # OR migrate work items to GitHub Issues
+  kubectl apply -f CLAIM_TEMPLATES/02-workitems-migration.yaml
+
+  # OR complete migration (repos + work items + projects)
+  kubectl apply -f CLAIM_TEMPLATES/03-complete-migration.yaml
+
+To check the migration status:
+
+  kubectl get adotogitmigration -n {{ .Values.migrationNamespace.name }}
+  kubectl describe adotogitmigration <name> -n {{ .Values.migrationNamespace.name }}
+
+For more information, refer to the documentation:
+- API Reference: docs/API_ENDPOINTS_REFERENCE.md
+- Discovery API: docs/AZURE_DEVOPS_DISCOVERY_API.md
+- Local Testing: docs/LOCAL_TESTING_GUIDE.md

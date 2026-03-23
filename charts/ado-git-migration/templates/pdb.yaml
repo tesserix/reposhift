@@ -1,0 +1,14 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ado-git-migration.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ado-git-migration.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "ado-git-migration.selectorLabels" . | nindent 6 }}
+{{- end }}

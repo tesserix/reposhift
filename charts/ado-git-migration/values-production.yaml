@@ -1,0 +1,371 @@
+# ============================================================================
+# PRODUCTION VALUES for ADO to GitHub Migration Operator
+# ============================================================================
+# Optimized for heavy-duty migrations with 5-10 years of commit history
+# Use: helm install -f values.yaml -f values-production.yaml
+# ============================================================================
+
+# Operator image settings
+image:
+  repository: acrbismuthdevtest.azurecr.io/platform/idp/microservices/ado-to-git-migration
+  pullPolicy: Always
+  tag: latest
+
+# ============================================================================
+# PRODUCTION-GRADE RESOURCE LIMITS
+# Tuned for 5-year history migrations (1,825 days, up to 50,000 commits)
+# ============================================================================
+resources:
+  limits:
+    cpu: "4000m"      # 4 CPU cores (8x increase from default 500m)
+    memory: "8Gi"     # 8 GB RAM (16x increase from default 512Mi)
+  requests:
+    cpu: "1000m"      # 1 CPU core (10x increase from default 100m)
+    memory: "2Gi"     # 2 GB RAM (16x increase from default 128Mi)
+
+# Why these limits?
+# - Git clone (5-10 years): 1-3 GB memory
+# - Git processing: 500MB-1GB memory
+# - Multiple concurrent operations: 2-4 GB total
+# - Safety buffer: 2x for peak loads
+# - Result: 8GB ensures no OOM kills on large repos
+
+# ============================================================================
+# ENHANCED OPERATOR CONFIGURATION
+# ============================================================================
+operator:
+  logLevel: "info"  # Use "debug" for troubleshooting
+  enableMetrics: true
+  enableLeaderElection: true
+  enableWebhooks: false
+
+  http:
+    port: 8080
+  metrics:
+    port: 8082
+  health:
+    port: 8081
+
+  # Production-grade rate limiting
+  rateLimits:
+    perClient: 100        # Keep as-is
+    global: 1000          # Increased global throughput
+    azureDevOps: 60       # ADO has strict limits, keep conservative
+    github: 4500          # Leave headroom below 5000/hour limit
+
+  # Optimized for heavy-duty migrations
+  defaultSettings:
+    maxHistoryDays: 1825    # 5 years (production default)
+    maxCommitCount: 50000   # Maximum allowed
+    batchSize: 10           # Process 10 resources per batch
+    retryAttempts: 5        # Increased from 3 to 5 for resilience
+    parallelWorkers: 10     # Increased from 5 to 10 for performance
+
+  # Batch processing delays (prevent API throttling)
+  batchDelayMinutes: 2      # 2 minutes between batches (reduced from 5)
+
+# ============================================================================
+# AUTOSCALING CONFIGURATION
+# Scale pods based on load
+# ============================================================================
+autoscaling:
+  enabled: true
+  minReplicas: 2            # Increased from 1 for HA
+  maxReplicas: 10           # Increased from 5 for scale
+  targetCPUUtilizationPercentage: 75        # Scale at 75% CPU
+  targetMemoryUtilizationPercentage: 75     # Scale at 75% memory
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60        # Fast scale-up
+      policies:
+      - type: Percent
+        value: 100                          # Double pods quickly
+        periodSeconds: 30
+      - type: Pods
+        value: 2                            # Add 2 pods at a time
+        periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 600       # Slow scale-down (10 min)
+      policies:
+      - type: Percent
+        value: 50                           # Reduce by 50%
+        periodSeconds: 300
+
+# ============================================================================
+# KEDA AUTOSCALING (Optional - for advanced scaling)
+# ============================================================================
+keda:
+  enabled: true
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 2
+  maxReplicaCount: 15
+  triggers:
+    # Scale based on active migrations
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc.cluster.local:9090
+        metricName: ado_github_migration_operator_migrations_active
+        threshold: "3"
+        query: sum(ado_github_migration_operator_migrations_active{phase!="Completed"})
+    # Scale based on CPU
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "75"
+    # Scale based on memory
+    - type: memory
+      metricType: Utilization
+      metadata:
+        value: "75"
+
+# ============================================================================
+# POD DISRUPTION BUDGET
+# Ensure availability during rolling updates
+# ============================================================================
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1          # Always keep at least 1 pod running
+
+# ============================================================================
+# POD AFFINITY/ANTI-AFFINITY
+# Spread pods across nodes for resilience
+# ============================================================================
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - ado-git-migration
+        topologyKey: kubernetes.io/hostname
+  # Prefer nodes with more resources
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 50
+      preference:
+        matchExpressions:
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+          - Standard_D8s_v3
+          - Standard_D16s_v3
+
+# ============================================================================
+# PERSISTENT STORAGE
+# Increased for heavy-duty migrations
+# ============================================================================
+persistence:
+  enabled: true
+  storageClassName: "managed-premium"  # Premium SSD for performance
+  accessModes:
+    - ReadWriteOnce
+  size: "500Gi"                        # Increased from 250Gi for large repos
+  mountPath: "/workspace/migrations"
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "managed-premium"
+
+# ============================================================================
+# POSTGRESQL DATABASE
+# For migration tracking and duplicate prevention
+# ============================================================================
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  database: "ado_migrations"
+  user: "postgres"
+  auth:
+    method: "trust"  # Internal cluster only
+
+  # Increased resources for production
+  resources:
+    requests:
+      memory: "512Mi"     # Increased from 256Mi
+      cpu: "500m"         # Increased from 250m
+    limits:
+      memory: "1Gi"       # Increased from 512Mi
+      cpu: "1000m"        # Increased from 500m
+
+  persistence:
+    enabled: true
+    storageClass: "managed-premium"
+    size: "50Gi"          # Increased from 30Gi
+    accessModes:
+      - ReadWriteOnce
+
+  connection:
+    host: ""
+    port: 5432
+    maxConnections: 200   # Increased from 100
+    connectionTimeout: 60 # Increased from 30
+
+# ============================================================================
+# MIGRATION CACHE
+# In-memory cache for active migrations
+# ============================================================================
+migrationCache:
+  enabled: true
+  retentionHours: 72      # Increased from 48 for longer retention
+  maxEntries: 5000        # Increased from 1000
+  cleanupIntervalMinutes: 15  # More frequent cleanup
+
+# ============================================================================
+# MONITORING & OBSERVABILITY
+# ============================================================================
+serviceMonitor:
+  enabled: true           # Enable Prometheus monitoring
+  interval: 30s
+  scrapeTimeout: 10s
+  labels:
+    prometheus: kube-prometheus
+
+# ============================================================================
+# INGRESS CONFIGURATION (Optional)
+# ============================================================================
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"   # 10 minutes
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    # WebSocket support
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "Upgrade";
+  hosts:
+    - host: ado-migration.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: ado-migration-tls
+      hosts:
+        - ado-migration.yourdomain.com
+
+# ============================================================================
+# NETWORK POLICY (Recommended for production)
+# ============================================================================
+networkPolicy:
+  enabled: true
+  ingressRules:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 8081
+          protocol: TCP
+  egressRules:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: database
+      ports:
+        - port: 5432
+          protocol: TCP
+    # External APIs (GitHub, Azure DevOps)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+
+# ============================================================================
+# RESOURCE QUOTAS (Namespace-level limits)
+# ============================================================================
+resourceQuota:
+  enabled: true
+  hard:
+    requests.cpu: "20"      # Total CPU requests
+    requests.memory: "40Gi" # Total memory requests
+    limits.cpu: "80"        # Total CPU limits
+    limits.memory: "160Gi"  # Total memory limits
+    persistentvolumeclaims: "10"
+
+# ============================================================================
+# POD PRIORITY CLASS
+# Ensure migration pods have priority
+# ============================================================================
+priorityClassName: "high-priority"
+
+# ============================================================================
+# SECURITY CONTEXT
+# Production-grade security settings
+# ============================================================================
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65532
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# Production Deployment Command:
+#   helm upgrade --install ado-git-migration ./charts/ado-git-migration \
+#     --namespace ado-migration-operator --create-namespace \
+#     -f charts/ado-git-migration/values.yaml \
+#     -f charts/ado-git-migration/values-production.yaml
+#
+# Resource Requirements per Node:
+#   - CPU: 4-8 cores recommended
+#   - Memory: 16-32 GB recommended
+#   - Storage: Premium SSD required
+#
+# Supports:
+#   - 5-10 year commit history migrations
+#   - Repositories up to 40 GiB (GitHub limit)
+#   - 50,000+ commits per repository
+#   - 10 concurrent migrations
+#   - Automatic retry with exponential backoff
+#   - High availability with 2+ replicas
+#
+# Tested with:
+#   - Azure Kubernetes Service (AKS)
+#   - Kubernetes 1.25+
+#   - Helm 3.10+
+# ============================================================================

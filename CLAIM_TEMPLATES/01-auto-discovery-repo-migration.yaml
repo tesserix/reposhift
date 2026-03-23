@@ -1,0 +1,145 @@
+# ==============================================================================
+# AUTO-DISCOVERY REPOSITORY MIGRATION
+# ==============================================================================
+#
+# What this does:
+# - Automatically finds ALL repositories in your Azure DevOps project
+# - Renames them using a template (no manual listing needed!)
+# - Migrates them to GitHub in parallel (super fast!)
+#
+# Use this when:
+# - You have many repos (10, 50, 100+) and don't want to list them manually
+# - You want to add a prefix or suffix to all repo names
+# - You want all repos migrated at once
+#
+# ==============================================================================
+
+apiVersion: migration.ado-to-git-migration.io/v1
+kind: MigrationJob
+metadata:
+  # Give your migration a name (use lowercase and dashes)
+  name: my-repo-migration
+  # Which namespace to run this in (usually "ado-git-migration")
+  namespace: ado-git-migration
+
+spec:
+  # ==============================================================================
+  # AZURE DEVOPS CONFIGURATION
+  # ==============================================================================
+  azureDevOps:
+    # Your Azure DevOps organization name (from URL: dev.azure.com/YOUR-ORG)
+    organization: YOUR-ORG-NAME-HERE
+
+    # Your Azure DevOps project name (where your repos are)
+    project: YOUR-PROJECT-NAME-HERE
+
+    # Authentication: Use Service Principal (recommended for production)
+    servicePrincipal:
+      # Azure App Registration Client ID (get from Azure Portal)
+      clientId: "YOUR-CLIENT-ID-HERE"
+
+      # Secret reference (points to Kubernetes secret with client-secret)
+      clientSecretRef:
+        name: azure-sp-secret    # Standard secret name (created by helm or manually)
+        key: client-secret       # Key inside the secret
+
+      # Azure Tenant ID (get from Azure Portal)
+      tenantId: "YOUR-TENANT-ID-HERE"
+
+  # ==============================================================================
+  # GITHUB CONFIGURATION
+  # ==============================================================================
+  github:
+    # Your GitHub organization or username (where repos will be created)
+    owner: YOUR-GITHUB-ORG-HERE
+
+    # Authentication Method 1: Personal Access Token (PAT) - Simple, good for testing
+    tokenRef:
+      name: github-token-secret   # Standard secret name (created by helm or manually)
+      key: token                  # Key inside the secret
+
+    # Authentication Method 2: GitHub App - Uncomment if using GitHub App instead of PAT
+    # appAuth:
+    #   appId: "YOUR-APP-ID-HERE"
+    #   installationIdRef:
+    #     name: github-app-secret
+    #     key: installation-id
+    #   privateKeyRef:
+    #     name: github-app-secret
+    #     key: private-key
+
+  # ==============================================================================
+  # MIGRATION SETTINGS
+  # ==============================================================================
+  settings:
+    # How many repos per worker pod (1 = fastest, each repo gets its own pod)
+    batchSize: 1
+
+    # How many days of git history to migrate (500 = ~1.5 years)
+    maxHistoryDays: 500
+
+    # Maximum number of commits to migrate per repo
+    maxCommitCount: 5000
+
+    # How many times to retry if a migration fails
+    retryAttempts: 3
+
+  # ==============================================================================
+  # AUTO-DISCOVERY (THE MAGIC PART!)
+  # ==============================================================================
+  discovery:
+    # Repository Auto-Discovery
+    repositories:
+      # Enable automatic repository discovery
+      enabled: true
+
+      # Mode: "all" means find all repos in the project
+      mode: all
+
+      # Optional: Only include repos matching these patterns
+      # includePatterns:
+      #   - "frontend-*"      # Only repos starting with "frontend-"
+      #   - "backend-*"       # And repos starting with "backend-"
+
+      # Optional: Exclude repos matching these patterns
+      # excludePatterns:
+      #   - "*-archived"      # Skip repos ending with "-archived"
+      #   - "*-test"          # Skip test repos
+
+      # Naming Convention: How to rename repos when migrating to GitHub
+      namingConvention:
+        # Strategy options:
+        # - "same": Keep the same name (my-repo → my-repo)
+        # - "prefix": Add text before the name
+        # - "suffix": Add text after the name
+        # - "template": Use a template with variables (most flexible!)
+        strategy: template
+
+        # Template: Use {{.SourceName}} for the original repo name
+        # Example: "product-team-{{.SourceName}}"
+        #   ADO repo "java-api" → GitHub repo "product-team-java-api"
+        template: "product-{{.SourceName}}"
+
+        # Transform: Change the case/format (optional)
+        # Options: "lowercase", "uppercase", "kebab-case", "snake_case"
+        transform: lowercase
+
+# ==============================================================================
+# WHAT HAPPENS NEXT?
+# ==============================================================================
+# 1. Operator connects to Azure DevOps and finds all repos in your project
+# 2. Operator applies the naming convention to each repo name
+# 3. Operator creates one worker pod per repository
+# 4. Each worker pod migrates its repo to GitHub in parallel
+# 5. You get all repos migrated super fast!
+#
+# To apply this:
+#   kubectl apply -f 01-auto-discovery-repo-migration.yaml
+#
+# To check progress:
+#   kubectl get migrationjob my-repo-migration -n ado-git-migration
+#   kubectl get pods -n ado-git-migration
+#
+# To see logs:
+#   kubectl logs -l app=migration-worker -n ado-git-migration --tail=50
+# ==============================================================================

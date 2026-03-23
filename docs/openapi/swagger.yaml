@@ -1,0 +1,2230 @@
+openapi: 3.0.3
+info:
+  title: Azure DevOps to GitHub Migration Operator API
+  description: |
+    API for the Azure DevOps to GitHub Migration Operator, which facilitates the migration of resources from Azure DevOps to GitHub.
+    
+    This API provides endpoints for:
+    - Discovering Azure DevOps resources (organizations, projects, repositories, work items, pipelines)
+    - Creating and managing migrations
+    - Monitoring migration progress
+    - Converting Azure DevOps pipelines to GitHub Actions workflows
+  version: 1.0.0
+  contact:
+    name: ADO to Git Migration Team
+    email: support@example.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: /api/v1
+    description: API base path
+
+tags:
+  - name: Discovery
+    description: Endpoints for discovering Azure DevOps resources
+  - name: Migrations
+    description: Endpoints for managing migrations
+  - name: Repository Migrations
+    description: Endpoints for repository-specific migrations
+  - name: Work Item Migrations
+    description: Endpoints for work item-specific migrations
+  - name: Pipeline Conversions
+    description: Endpoints for pipeline to workflow conversions
+  - name: Validation
+    description: Endpoints for validating configurations and credentials
+  - name: Utilities
+    description: Utility endpoints for health checks and version information
+
+paths:
+  /discovery/organizations:
+    get:
+      tags:
+        - Discovery
+      summary: Discover Azure DevOps organizations
+      description: Retrieves a list of Azure DevOps organizations accessible to the authenticated user
+      parameters:
+        - name: client_id
+          in: query
+          description: Azure Service Principal Client ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: client_secret
+          in: query
+          description: Azure Service Principal Client Secret
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          description: Azure Tenant ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  organizations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Organization'
+                  count:
+                    type: integer
+                    description: Total number of organizations
+        '400':
+          description: Bad request - missing required parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /discovery/projects:
+    get:
+      tags:
+        - Discovery
+      summary: Discover Azure DevOps projects
+      description: Retrieves a list of projects in an Azure DevOps organization
+      parameters:
+        - name: organization
+          in: query
+          description: Azure DevOps organization name
+          required: true
+          schema:
+            type: string
+        - name: client_id
+          in: query
+          description: Azure Service Principal Client ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: client_secret
+          in: query
+          description: Azure Service Principal Client Secret
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          description: Azure Tenant ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Project'
+                  count:
+                    type: integer
+                    description: Total number of projects
+                  organization:
+                    type: string
+                    description: Organization name
+        '400':
+          description: Bad request - missing required parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /discovery/repositories:
+    get:
+      tags:
+        - Discovery
+      summary: Discover Azure DevOps repositories
+      description: Retrieves a list of repositories in an Azure DevOps project
+      parameters:
+        - name: organization
+          in: query
+          description: Azure DevOps organization name
+          required: true
+          schema:
+            type: string
+        - name: project
+          in: query
+          description: Azure DevOps project name
+          required: true
+          schema:
+            type: string
+        - name: client_id
+          in: query
+          description: Azure Service Principal Client ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: client_secret
+          in: query
+          description: Azure Service Principal Client Secret
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          description: Azure Tenant ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: include_empty
+          in: query
+          description: Include empty repositories
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: include_disabled
+          in: query
+          description: Include disabled repositories
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  repositories:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Repository'
+                  count:
+                    type: integer
+                    description: Total number of repositories
+                  organization:
+                    type: string
+                    description: Organization name
+                  project:
+                    type: string
+                    description: Project name
+        '400':
+          description: Bad request - missing required parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /discovery/workitems:
+    get:
+      tags:
+        - Discovery
+      summary: Discover Azure DevOps work items
+      description: Retrieves a list of work items in an Azure DevOps project
+      parameters:
+        - name: organization
+          in: query
+          description: Azure DevOps organization name
+          required: true
+          schema:
+            type: string
+        - name: project
+          in: query
+          description: Azure DevOps project name
+          required: true
+          schema:
+            type: string
+        - name: client_id
+          in: query
+          description: Azure Service Principal Client ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: client_secret
+          in: query
+          description: Azure Service Principal Client Secret
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          description: Azure Tenant ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: types
+          in: query
+          description: Comma-separated work item types
+          required: false
+          schema:
+            type: string
+        - name: states
+          in: query
+          description: Comma-separated work item states
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of items to return
+          required: false
+          schema:
+            type: integer
+            default: 1000
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItems:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkItem'
+                  count:
+                    type: integer
+                    description: Total number of work items
+                  organization:
+                    type: string
+                    description: Organization name
+                  project:
+                    type: string
+                    description: Project name
+        '400':
+          description: Bad request - missing required parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /migrations:
+    get:
+      tags:
+        - Migrations
+      summary: List migrations
+      description: Retrieves a list of all migration jobs
+      parameters:
+        - name: namespace
+          in: query
+          description: Kubernetes namespace
+          required: false
+          schema:
+            type: string
+            default: default
+        - name: phase
+          in: query
+          description: Filter by migration phase
+          required: false
+          schema:
+            type: string
+            enum: [Pending, Validating, Running, Completed, Failed, Cancelled, Paused]
+        - name: type
+          in: query
+          description: Filter by migration type
+          required: false
+          schema:
+            type: string
+            enum: [repository, workitems, pipelines, all]
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  migrations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdoToGitMigration'
+                  count:
+                    type: integer
+                    description: Total number of migrations
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+        - Migrations
+      summary: Create migration
+      description: Creates a new migration job
+      requestBody:
+        description: Migration job configuration
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdoToGitMigration'
+      responses:
+        '201':
+          description: Migration created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdoToGitMigration'
+        '400':
+          description: Bad request - invalid configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /migrations/{id}:
+    get:
+      tags:
+        - Migrations
+      summary: Get migration
+      description: Retrieves details of a specific migration job
+      parameters:
+        - name: id
+          in: path
+          description: Migration job name
+          required: true
+          schema:
+            type: string
+        - name: namespace
+          in: query
+          description: Kubernetes namespace
+          required: false
+          schema:
+            type: string
+            default: default
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdoToGitMigration'
+        '404':
+          description: Migration not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+        - Migrations
+      summary: Delete migration
+      description: Deletes a specific migration job
+      parameters:
+        - name: id
+          in: path
+          description: Migration job name
+          required: true
+          schema:
+            type: string
+        - name: namespace
+          in: query
+          description: Kubernetes namespace
+          required: false
+          schema:
+            type: string
+            default: default
+      responses:
+        '204':
+          description: Migration deleted successfully
+        '404':
+          description: Migration not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /migrations/{id}/status:
+    get:
+      tags:
+        - Migrations
+      summary: Get migration status
+      description: Retrieves the status of a specific migration job
+      parameters:
+        - name: id
+          in: path
+          description: Migration job name
+          required: true
+          schema:
+            type: string
+        - name: namespace
+          in: query
+          description: Kubernetes namespace
+          required: false
+          schema:
+            type: string
+            default: default
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdoToGitMigrationStatus'
+        '404':
+          description: Migration not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /repository-migrations:
+    get:
+      tags:
+        - Repository Migrations
+      summary: List repository migrations
+      description: Retrieves a list of all repository migrations
+      parameters:
+        - name: namespace
+          in: query
+          description: Kubernetes namespace
+          required: false
+          schema:
+            type: string
+            default: default
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RepositoryMigration'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /repository-migrations/{id}:
+    get:
+      tags:
+        - Repository Migrations
+      summary: Get repository migration
+      description: Retrieves details of a specific repository migration
+      parameters:
+        - name: id
+          in: path
+          description: Repository migration name
+          required: true
+          schema:
+            type: string
+        - name: namespace
+          in: query
+          description: Kubernetes namespace
+          required: false
+          schema:
+            type: string
+            default: default
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepositoryMigration'
+        '404':
+          description: Repository migration not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workitem-migrations:
+    get:
+      tags:
+        - Work Item Migrations
+      summary: List work item migrations
+      description: Retrieves a list of all work item migrations
+      parameters:
+        - name: namespace
+          in: query
+          description: Kubernetes namespace
+          required: false
+          schema:
+            type: string
+            default: default
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkItemMigration'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workitem-migrations/{id}:
+    get:
+      tags:
+        - Work Item Migrations
+      summary: Get work item migration
+      description: Retrieves details of a specific work item migration
+      parameters:
+        - name: id
+          in: path
+          description: Work item migration name
+          required: true
+          schema:
+            type: string
+        - name: namespace
+          in: query
+          description: Kubernetes namespace
+          required: false
+          schema:
+            type: string
+            default: default
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkItemMigration'
+        '404':
+          description: Work item migration not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /utils/health:
+    get:
+      tags:
+        - Utilities
+      summary: Health check
+      description: Checks the health status of the operator
+      responses:
+        '200':
+          description: Operator is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+        '500':
+          description: Operator is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /utils/ready:
+    get:
+      tags:
+        - Utilities
+      summary: Readiness check
+      description: Checks if the operator is ready to serve requests
+      responses:
+        '200':
+          description: Operator is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+        '500':
+          description: Operator is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp when the error occurred
+        status:
+          type: integer
+          description: HTTP status code
+
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Organization ID
+        name:
+          type: string
+          description: Organization name
+        url:
+          type: string
+          format: uri
+          description: Organization URL
+        description:
+          type: string
+          description: Organization description
+        region:
+          type: string
+          description: Azure region
+        owner:
+          type: string
+          description: Organization owner
+        createdDate:
+          type: string
+          format: date-time
+          description: Creation date
+        lastModifiedDate:
+          type: string
+          format: date-time
+          description: Last modification date
+      required:
+        - id
+        - name
+        - url
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Project ID
+        name:
+          type: string
+          description: Project name
+        description:
+          type: string
+          description: Project description
+        url:
+          type: string
+          format: uri
+          description: Project URL
+        state:
+          type: string
+          description: Project state
+          enum: [wellFormed, createPending, deleting, new, all]
+        visibility:
+          type: string
+          description: Project visibility
+          enum: [private, public]
+        revision:
+          type: integer
+          format: int64
+          description: Project revision
+        lastUpdateTime:
+          type: string
+          format: date-time
+          description: Last update time
+        capabilities:
+          type: object
+          additionalProperties: true
+          description: Project capabilities
+      required:
+        - id
+        - name
+        - url
+        - state
+        - visibility
+        - revision
+
+    Repository:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Repository ID
+        name:
+          type: string
+          description: Repository name
+        url:
+          type: string
+          format: uri
+          description: Repository URL
+        defaultBranch:
+          type: string
+          description: Default branch
+        size:
+          type: integer
+          format: int64
+          description: Repository size in bytes
+        isEmpty:
+          type: boolean
+          description: Whether the repository is empty
+        isDisabled:
+          type: boolean
+          description: Whether the repository is disabled
+        projectId:
+          type: string
+          description: Parent project ID
+        projectName:
+          type: string
+          description: Parent project name
+        remoteUrl:
+          type: string
+          format: uri
+          description: Remote URL
+        sshUrl:
+          type: string
+          description: SSH URL
+        webUrl:
+          type: string
+          format: uri
+          description: Web URL
+        branchCount:
+          type: integer
+          description: Number of branches
+        tagCount:
+          type: integer
+          description: Number of tags
+        pullRequestCount:
+          type: integer
+          description: Number of pull requests
+        lastCommit:
+          $ref: '#/components/schemas/Commit'
+      required:
+        - id
+        - name
+        - url
+        - defaultBranch
+        - size
+        - isEmpty
+        - isDisabled
+        - projectId
+        - projectName
+        - remoteUrl
+        - webUrl
+
+    Commit:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Commit ID
+        author:
+          type: string
+          description: Author
+        committer:
+          type: string
+          description: Committer
+        comment:
+          type: string
+          description: Commit message
+        date:
+          type: string
+          format: date-time
+          description: Commit date
+        url:
+          type: string
+          format: uri
+          description: Commit URL
+      required:
+        - id
+        - author
+        - committer
+        - comment
+        - date
+        - url
+
+    WorkItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Work item ID
+        type:
+          type: string
+          description: Work item type
+        title:
+          type: string
+          description: Work item title
+        state:
+          type: string
+          description: Work item state
+        assignedTo:
+          type: string
+          description: Assigned user
+        createdDate:
+          type: string
+          format: date-time
+          description: Creation date
+        changedDate:
+          type: string
+          format: date-time
+          description: Last change date
+        areaPath:
+          type: string
+          description: Area path
+        iterationPath:
+          type: string
+          description: Iteration path
+        tags:
+          type: array
+          items:
+            type: string
+          description: Work item tags
+        priority:
+          type: string
+          description: Priority
+        severity:
+          type: string
+          description: Severity
+        url:
+          type: string
+          format: uri
+          description: Work item URL
+        projectId:
+          type: string
+          description: Parent project ID
+        projectName:
+          type: string
+          description: Parent project name
+      required:
+        - id
+        - type
+        - title
+        - state
+        - createdDate
+        - changedDate
+        - url
+        - projectId
+        - projectName
+
+    AdoToGitMigration:
+      type: object
+      properties:
+        apiVersion:
+          type: string
+          default: migration.ado-to-git-migration.io/v1
+        kind:
+          type: string
+          default: AdoToGitMigration
+        metadata:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Migration name
+            namespace:
+              type: string
+              description: Kubernetes namespace
+            creationTimestamp:
+              type: string
+              format: date-time
+              description: Creation timestamp
+        spec:
+          $ref: '#/components/schemas/AdoToGitMigrationSpec'
+        status:
+          $ref: '#/components/schemas/AdoToGitMigrationStatus'
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+
+    AdoToGitMigrationSpec:
+      type: object
+      properties:
+        type:
+          type: string
+          description: Migration type
+          enum: [repository, workitems, pipelines, all]
+        source:
+          $ref: '#/components/schemas/AdoSourceConfig'
+        target:
+          $ref: '#/components/schemas/GitHubTargetConfig'
+        settings:
+          $ref: '#/components/schemas/MigrationSettings'
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/MigrationResource'
+          description: Resources to migrate
+        validationRules:
+          $ref: '#/components/schemas/ValidationRules'
+      required:
+        - type
+        - source
+        - target
+        - settings
+        - resources
+
+    AdoSourceConfig:
+      type: object
+      properties:
+        organization:
+          type: string
+          description: Azure DevOps organization name
+        project:
+          type: string
+          description: Azure DevOps project name
+        auth:
+          $ref: '#/components/schemas/AdoAuthConfig'
+        apiUrl:
+          type: string
+          format: uri
+          description: Azure DevOps API URL
+          default: https://dev.azure.com
+      required:
+        - organization
+        - project
+        - auth
+
+    AdoAuthConfig:
+      type: object
+      properties:
+        servicePrincipal:
+          $ref: '#/components/schemas/ServicePrincipalConfig'
+        pat:
+          $ref: '#/components/schemas/PATConfig'
+      oneOf:
+        - required: [servicePrincipal]
+        - required: [pat]
+
+    ServicePrincipalConfig:
+      type: object
+      properties:
+        clientId:
+          type: string
+          description: Azure Service Principal Client ID
+        tenantId:
+          type: string
+          description: Azure Tenant ID
+        clientSecretRef:
+          $ref: '#/components/schemas/SecretReference'
+      required:
+        - clientId
+        - tenantId
+        - clientSecretRef
+
+    PATConfig:
+      type: object
+      properties:
+        tokenRef:
+          $ref: '#/components/schemas/SecretReference'
+      required:
+        - tokenRef
+
+    SecretReference:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Secret name
+        key:
+          type: string
+          description: Secret key
+        namespace:
+          type: string
+          description: Secret namespace
+      required:
+        - name
+        - key
+
+    GitHubTargetConfig:
+      type: object
+      properties:
+        owner:
+          type: string
+          description: GitHub organization or user name
+        auth:
+          $ref: '#/components/schemas/GitHubAuthConfig'
+        apiUrl:
+          type: string
+          format: uri
+          description: GitHub API URL
+          default: https://api.github.com
+        defaultRepoSettings:
+          $ref: '#/components/schemas/GitHubRepoSettings'
+      required:
+        - owner
+        - auth
+
+    GitHubAuthConfig:
+      type: object
+      properties:
+        tokenRef:
+          $ref: '#/components/schemas/SecretReference'
+      required:
+        - tokenRef
+
+    GitHubRepoSettings:
+      type: object
+      properties:
+        visibility:
+          type: string
+          description: Repository visibility
+          enum: [public, private, internal]
+          default: private
+        autoInit:
+          type: boolean
+          description: Auto-initialize repository
+          default: false
+        licenseTemplate:
+          type: string
+          description: License template
+        gitignoreTemplate:
+          type: string
+          description: Gitignore template
+
+    MigrationSettings:
+      type: object
+      properties:
+        maxHistoryDays:
+          type: integer
+          description: Maximum days of commit history to migrate
+          default: 500
+          minimum: 1
+          maximum: 3650
+        maxCommitCount:
+          type: integer
+          description: Maximum number of commits to migrate
+          default: 2000
+          minimum: 1
+          maximum: 50000
+        includeWorkItems:
+          type: boolean
+          description: Include work items migration
+          default: false
+        includeBuilds:
+          type: boolean
+          description: Include builds/releases migration
+          default: false
+        includePullRequests:
+          type: boolean
+          description: Include pull requests
+          default: false
+        includeTags:
+          type: boolean
+          description: Include tags
+          default: false
+        handleLFS:
+          type: boolean
+          description: Handle LFS files
+          default: false
+        batchSize:
+          type: integer
+          description: Batch size for processing
+          default: 10
+          minimum: 1
+          maximum: 1000
+        retryAttempts:
+          type: integer
+          description: Retry attempts
+          default: 3
+          minimum: 0
+          maximum: 10
+        parallelWorkers:
+          type: integer
+          description: Parallel workers
+          default: 5
+          minimum: 1
+          maximum: 20
+        rateLimit:
+          $ref: '#/components/schemas/RateLimitSettings'
+
+    RateLimitSettings:
+      type: object
+      properties:
+        adoRequestsPerMinute:
+          type: integer
+          description: Requests per minute for Azure DevOps
+          default: 60
+          minimum: 1
+        githubRequestsPerMinute:
+          type: integer
+          description: Requests per minute for GitHub
+          default: 5000
+          minimum: 1
+
+    MigrationResource:
+      type: object
+      properties:
+        type:
+          type: string
+          description: Resource type
+          enum: [repository, work-item, pipeline]
+        sourceId:
+          type: string
+          description: Source resource ID
+        sourceName:
+          type: string
+          description: Source resource name
+        targetName:
+          type: string
+          description: Target resource name
+        config:
+          type: object
+          additionalProperties:
+            type: string
+          description: Additional configuration
+        settings:
+          $ref: '#/components/schemas/ResourceSettings'
+      required:
+        - type
+        - sourceId
+        - sourceName
+        - targetName
+
+    ResourceSettings:
+      type: object
+      properties:
+        repository:
+          $ref: '#/components/schemas/RepositorySettings'
+        workItem:
+          $ref: '#/components/schemas/WorkItemSettings'
+        pipeline:
+          $ref: '#/components/schemas/PipelineSettings'
+
+    RepositorySettings:
+      type: object
+      properties:
+        includeBranches:
+          type: array
+          items:
+            type: string
+          description: Branches to include
+        excludeBranches:
+          type: array
+          items:
+            type: string
+          description: Branches to exclude
+        branchMapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: Branch name mapping
+
+    WorkItemSettings:
+      type: object
+      properties:
+        typeMapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: Work item type mapping
+        stateMapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: Work item state mapping
+        fieldMapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: Work item field mapping
+
+    PipelineSettings:
+      type: object
+      properties:
+        convertToActions:
+          type: boolean
+          description: Convert to GitHub Actions
+          default: true
+        workflowTemplate:
+          type: string
+          description: Workflow template name
+
+    ValidationRules:
+      type: object
+      properties:
+        skipValidation:
+          type: boolean
+          description: Skip validation
+          default: false
+        requiredPermissions:
+          type: array
+          items:
+            type: string
+          description: Required permissions
+        preMigrationChecks:
+          type: array
+          items:
+            type: string
+          description: Pre-migration checks
+
+    AdoToGitMigrationStatus:
+      type: object
+      properties:
+        phase:
+          type: string
+          description: Migration phase
+          enum: [Pending, Validating, Running, Completed, Failed, Cancelled, Paused]
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
+          description: Status conditions
+        startTime:
+          type: string
+          format: date-time
+          description: Start time
+        completionTime:
+          type: string
+          format: date-time
+          description: Completion time
+        progress:
+          $ref: '#/components/schemas/MigrationProgress'
+        resourceStatuses:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceMigrationStatus'
+          description: Resource migration statuses
+        validationResults:
+          $ref: '#/components/schemas/ValidationResults'
+        errorMessage:
+          type: string
+          description: Error message
+        warnings:
+          type: array
+          items:
+            type: string
+          description: Warning messages
+        statistics:
+          $ref: '#/components/schemas/MigrationStatistics'
+      required:
+        - phase
+        - progress
+
+    Condition:
+      type: object
+      properties:
+        type:
+          type: string
+          description: Condition type
+        status:
+          type: string
+          description: Condition status
+          enum: ["True", "False", "Unknown"]
+        lastTransitionTime:
+          type: string
+          format: date-time
+          description: Last transition time
+        reason:
+          type: string
+          description: Reason for the condition
+        message:
+          type: string
+          description: Human-readable message
+      required:
+        - type
+        - status
+        - lastTransitionTime
+        - reason
+        - message
+
+    MigrationProgress:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total resources to migrate
+        completed:
+          type: integer
+          description: Completed resources
+        failed:
+          type: integer
+          description: Failed resources
+        processing:
+          type: integer
+          description: Currently processing
+        skipped:
+          type: integer
+          description: Skipped resources
+        percentage:
+          type: integer
+          description: Percentage complete
+          minimum: 0
+          maximum: 100
+        currentStep:
+          type: string
+          description: Current step
+        estimatedCompletion:
+          type: string
+          format: date-time
+          description: Estimated completion time
+        processingRate:
+          type: number
+          format: float
+          description: Processing rate (items per minute)
+      required:
+        - total
+        - completed
+        - failed
+        - processing
+        - percentage
+
+    ResourceMigrationStatus:
+      type: object
+      properties:
+        resourceId:
+          type: string
+          description: Resource identifier
+        type:
+          type: string
+          description: Resource type
+          enum: [repository, work-item, pipeline]
+        sourceName:
+          type: string
+          description: Source name
+        targetName:
+          type: string
+          description: Target name
+        status:
+          type: string
+          description: Status
+          enum: [Pending, Validating, Running, Completed, Failed, Skipped, Paused]
+        progress:
+          type: integer
+          description: Progress percentage
+          minimum: 0
+          maximum: 100
+        startTime:
+          type: string
+          format: date-time
+          description: Start time
+        completionTime:
+          type: string
+          format: date-time
+          description: Completion time
+        errorMessage:
+          type: string
+          description: Error message if failed
+        githubUrl:
+          type: string
+          format: uri
+          description: GitHub URL if successful
+        details:
+          $ref: '#/components/schemas/ResourceMigrationDetails'
+      required:
+        - resourceId
+        - type
+        - sourceName
+        - targetName
+        - status
+        - progress
+
+    ResourceMigrationDetails:
+      type: object
+      properties:
+        itemsProcessed:
+          type: integer
+          description: Items processed
+        totalItems:
+          type: integer
+          description: Total items
+        bytesTransferred:
+          type: integer
+          format: int64
+          description: Bytes transferred
+        currentOperation:
+          type: string
+          description: Current operation
+        subResources:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubResourceStatus'
+          description: Sub-resources
+
+    SubResourceStatus:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Sub-resource name
+        type:
+          type: string
+          description: Sub-resource type
+        status:
+          type: string
+          description: Status
+          enum: [Pending, Validating, Running, Completed, Failed, Skipped, Paused]
+        progress:
+          type: integer
+          description: Progress percentage
+          minimum: 0
+          maximum: 100
+        errorMessage:
+          type: string
+          description: Error message if failed
+      required:
+        - name
+        - type
+        - status
+        - progress
+
+    ValidationResults:
+      type: object
+      properties:
+        valid:
+          type: boolean
+          description: Overall validation status
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          description: Validation errors
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationWarning'
+          description: Validation warnings
+        timestamp:
+          type: string
+          format: date-time
+          description: Validation timestamp
+      required:
+        - valid
+        - timestamp
+
+    ValidationError:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        field:
+          type: string
+          description: Field that caused the error
+        resource:
+          type: string
+          description: Resource that caused the error
+      required:
+        - code
+        - message
+
+    ValidationWarning:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Warning code
+        message:
+          type: string
+          description: Warning message
+        field:
+          type: string
+          description: Field that caused the warning
+        resource:
+          type: string
+          description: Resource that caused the warning
+      required:
+        - code
+        - message
+
+    MigrationStatistics:
+      type: object
+      properties:
+        duration:
+          type: string
+          description: Total duration
+        commitsMigrated:
+          type: integer
+          description: Total commits migrated
+        branchesMigrated:
+          type: integer
+          description: Total branches migrated
+        tagsMigrated:
+          type: integer
+          description: Total tags migrated
+        workItemsMigrated:
+          type: integer
+          description: Total work items migrated
+        pullRequestsMigrated:
+          type: integer
+          description: Total pull requests migrated
+        pipelinesMigrated:
+          type: integer
+          description: Total pipelines migrated
+        dataTransferred:
+          type: integer
+          format: int64
+          description: Total data transferred (bytes)
+        apiCalls:
+          type: object
+          additionalProperties:
+            type: integer
+          description: API calls made
+
+    RepositoryMigration:
+      type: object
+      properties:
+        apiVersion:
+          type: string
+          default: migration.ado-to-git-migration.io/v1
+        kind:
+          type: string
+          default: RepositoryMigration
+        metadata:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Migration name
+            namespace:
+              type: string
+              description: Kubernetes namespace
+        spec:
+          $ref: '#/components/schemas/RepositoryMigrationSpec'
+        status:
+          $ref: '#/components/schemas/RepositoryMigrationStatus'
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+
+    RepositoryMigrationSpec:
+      type: object
+      properties:
+        source:
+          $ref: '#/components/schemas/RepositorySource'
+        target:
+          $ref: '#/components/schemas/RepositoryTarget'
+        settings:
+          $ref: '#/components/schemas/RepositoryMigrationSettings'
+      required:
+        - source
+        - target
+        - settings
+
+    RepositorySource:
+      type: object
+      properties:
+        organization:
+          type: string
+          description: Azure DevOps organization
+        project:
+          type: string
+          description: Azure DevOps project
+        name:
+          type: string
+          description: Repository name
+        id:
+          type: string
+          description: Repository ID
+        auth:
+          $ref: '#/components/schemas/AdoAuthConfig'
+      required:
+        - organization
+        - project
+        - name
+        - id
+        - auth
+
+    RepositoryTarget:
+      type: object
+      properties:
+        owner:
+          type: string
+          description: GitHub owner (organization or user)
+        name:
+          type: string
+          description: Repository name
+        createIfNotExists:
+          type: boolean
+          description: Create repository if it doesn't exist
+          default: true
+        visibility:
+          type: string
+          description: Repository visibility
+          enum: [public, private, internal]
+          default: private
+        description:
+          type: string
+          description: Repository description
+        auth:
+          $ref: '#/components/schemas/GitHubAuthConfig'
+      required:
+        - owner
+        - name
+        - auth
+
+    RepositoryMigrationSettings:
+      type: object
+      properties:
+        includeHistory:
+          type: boolean
+          description: Include commit history
+          default: true
+        maxHistoryDays:
+          type: integer
+          description: Maximum history days
+          default: 500
+        maxCommitCount:
+          type: integer
+          description: Maximum commit count
+          default: 2000
+        includeBranches:
+          type: array
+          items:
+            type: string
+          description: Include specific branches
+        excludeBranches:
+          type: array
+          items:
+            type: string
+          description: Exclude specific branches
+        includeTags:
+          type: boolean
+          description: Include tags
+          default: true
+        includePullRequests:
+          type: boolean
+          description: Include pull requests
+          default: false
+        handleLFS:
+          type: boolean
+          description: Handle LFS files
+          default: false
+        branchMapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: Branch mapping
+
+    RepositoryMigrationStatus:
+      type: object
+      properties:
+        phase:
+          type: string
+          description: Migration phase
+          enum: [Pending, Validating, Running, Completed, Failed, Cancelled, Paused]
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
+          description: Status conditions
+        startTime:
+          type: string
+          format: date-time
+          description: Start time
+        completionTime:
+          type: string
+          format: date-time
+          description: Completion time
+        progress:
+          $ref: '#/components/schemas/RepositoryMigrationProgress'
+        targetUrl:
+          type: string
+          format: uri
+          description: Target repository URL
+        errorMessage:
+          type: string
+          description: Error message
+        warnings:
+          type: array
+          items:
+            type: string
+          description: Warning messages
+        statistics:
+          $ref: '#/components/schemas/RepositoryMigrationStatistics'
+      required:
+        - phase
+        - progress
+
+    RepositoryMigrationProgress:
+      type: object
+      properties:
+        currentStep:
+          type: string
+          description: Current step
+        stepsCompleted:
+          type: integer
+          description: Steps completed
+        totalSteps:
+          type: integer
+          description: Total steps
+        percentage:
+          type: integer
+          description: Percentage complete
+          minimum: 0
+          maximum: 100
+        branchesMigrated:
+          type: integer
+          description: Branches migrated
+        totalBranches:
+          type: integer
+          description: Total branches
+        commitsMigrated:
+          type: integer
+          description: Commits migrated
+        totalCommits:
+          type: integer
+          description: Total commits
+        tagsMigrated:
+          type: integer
+          description: Tags migrated
+        totalTags:
+          type: integer
+          description: Total tags
+        pullRequestsMigrated:
+          type: integer
+          description: Pull requests migrated
+        totalPullRequests:
+          type: integer
+          description: Total pull requests
+        estimatedCompletion:
+          type: string
+          format: date-time
+          description: Estimated completion time
+      required:
+        - currentStep
+        - stepsCompleted
+        - totalSteps
+        - percentage
+
+    RepositoryMigrationStatistics:
+      type: object
+      properties:
+        duration:
+          type: string
+          description: Total duration
+        commitsMigrated:
+          type: integer
+          description: Total commits migrated
+        branchesMigrated:
+          type: integer
+          description: Total branches migrated
+        tagsMigrated:
+          type: integer
+          description: Total tags migrated
+        pullRequestsMigrated:
+          type: integer
+          description: Total pull requests migrated
+        dataTransferred:
+          type: integer
+          format: int64
+          description: Total data transferred (bytes)
+        apiCalls:
+          type: object
+          additionalProperties:
+            type: integer
+          description: API calls made
+
+    WorkItemMigration:
+      type: object
+      properties:
+        apiVersion:
+          type: string
+          default: migration.ado-to-git-migration.io/v1
+        kind:
+          type: string
+          default: WorkItemMigration
+        metadata:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Migration name
+            namespace:
+              type: string
+              description: Kubernetes namespace
+        spec:
+          $ref: '#/components/schemas/WorkItemMigrationSpec'
+        status:
+          $ref: '#/components/schemas/WorkItemMigrationStatus'
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+
+    WorkItemMigrationSpec:
+      type: object
+      properties:
+        source:
+          $ref: '#/components/schemas/WorkItemSource'
+        target:
+          $ref: '#/components/schemas/WorkItemTarget'
+        settings:
+          $ref: '#/components/schemas/WorkItemMigrationSettings'
+        filters:
+          $ref: '#/components/schemas/WorkItemFilters'
+      required:
+        - source
+        - target
+        - settings
+        - filters
+
+    WorkItemSource:
+      type: object
+      properties:
+        organization:
+          type: string
+          description: Azure DevOps organization
+        project:
+          type: string
+          description: Azure DevOps project
+        auth:
+          $ref: '#/components/schemas/AdoAuthConfig'
+      required:
+        - organization
+        - project
+        - auth
+
+    WorkItemTarget:
+      type: object
+      properties:
+        owner:
+          type: string
+          description: GitHub owner (organization or user)
+        repository:
+          type: string
+          description: GitHub repository
+        auth:
+          $ref: '#/components/schemas/GitHubAuthConfig'
+      required:
+        - owner
+        - repository
+        - auth
+
+    WorkItemMigrationSettings:
+      type: object
+      properties:
+        typeMapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: Work item type mapping
+        stateMapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: Work item state mapping
+        includeHistory:
+          type: boolean
+          description: Include work item history
+          default: true
+        includeAttachments:
+          type: boolean
+          description: Include attachments
+          default: false
+        preserveRelationships:
+          type: boolean
+          description: Preserve work item relationships
+          default: true
+        includeTags:
+          type: boolean
+          description: Include tags as labels
+          default: true
+        batchSize:
+          type: integer
+          description: Batch size for processing
+          default: 10
+        fieldMapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: Field mapping
+
+    WorkItemFilters:
+      type: object
+      properties:
+        types:
+          type: array
+          items:
+            type: string
+          description: Work item types to include
+        states:
+          type: array
+          items:
+            type: string
+          description: Work item states to include
+        areaPaths:
+          type: array
+          items:
+            type: string
+          description: Area paths to include
+        iterationPaths:
+          type: array
+          items:
+            type: string
+          description: Iteration paths to include
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags to include
+        assignedTo:
+          type: array
+          items:
+            type: string
+          description: Assigned to users
+        dateRange:
+          $ref: '#/components/schemas/DateRange'
+        wiqlQuery:
+          type: string
+          description: WIQL query for advanced filtering
+
+    DateRange:
+      type: object
+      properties:
+        start:
+          type: string
+          format: date-time
+          description: Start date
+        end:
+          type: string
+          format: date-time
+          description: End date
+
+    WorkItemMigrationStatus:
+      type: object
+      properties:
+        phase:
+          type: string
+          description: Migration phase
+          enum: [Pending, Validating, Running, Completed, Failed, Cancelled, Paused]
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
+          description: Status conditions
+        startTime:
+          type: string
+          format: date-time
+          description: Start time
+        completionTime:
+          type: string
+          format: date-time
+          description: Completion time
+        progress:
+          $ref: '#/components/schemas/WorkItemMigrationProgress'
+        migratedItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/MigratedWorkItem'
+          description: Migrated work items
+        errorMessage:
+          type: string
+          description: Error message
+        warnings:
+          type: array
+          items:
+            type: string
+          description: Warning messages
+        statistics:
+          $ref: '#/components/schemas/WorkItemMigrationStatistics'
+      required:
+        - phase
+        - progress
+
+    WorkItemMigrationProgress:
+      type: object
+      properties:
+        currentStep:
+          type: string
+          description: Current step
+        itemsDiscovered:
+          type: integer
+          description: Work items discovered
+        itemsMigrated:
+          type: integer
+          description: Work items migrated
+        itemsFailed:
+          type: integer
+          description: Work items failed
+        itemsSkipped:
+          type: integer
+          description: Work items skipped
+        percentage:
+          type: integer
+          description: Percentage complete
+          minimum: 0
+          maximum: 100
+        currentBatch:
+          type: integer
+          description: Current batch
+        totalBatches:
+          type: integer
+          description: Total batches
+        estimatedCompletion:
+          type: string
+          format: date-time
+          description: Estimated completion time
+      required:
+        - currentStep
+        - itemsDiscovered
+        - itemsMigrated
+        - itemsFailed
+        - itemsSkipped
+        - percentage
+
+    MigratedWorkItem:
+      type: object
+      properties:
+        sourceId:
+          type: integer
+          description: Source work item ID
+        sourceType:
+          type: string
+          description: Source work item type
+        sourceTitle:
+          type: string
+          description: Source work item title
+        targetIssueNumber:
+          type: integer
+          description: Target GitHub issue number
+        targetUrl:
+          type: string
+          format: uri
+          description: Target GitHub issue URL
+        migratedAt:
+          type: string
+          format: date-time
+          description: Migration timestamp
+      required:
+        - sourceId
+        - sourceType
+        - sourceTitle
+        - targetIssueNumber
+        - targetUrl
+        - migratedAt
+
+    WorkItemMigrationStatistics:
+      type: object
+      properties:
+        duration:
+          type: string
+          description: Total duration
+        itemsDiscovered:
+          type: integer
+          description: Total work items discovered
+        itemsMigrated:
+          type: integer
+          description: Total work items migrated
+        itemsFailed:
+          type: integer
+          description: Total work items failed
+        itemsSkipped:
+          type: integer
+          description: Total work items skipped
+        commentsMigrated:
+          type: integer
+          description: Total comments migrated
+        attachmentsMigrated:
+          type: integer
+          description: Total attachments migrated
+        dataTransferred:
+          type: integer
+          format: int64
+          description: Total data transferred (bytes)
+        apiCalls:
+          type: object
+          additionalProperties:
+            type: integer
+          description: API calls made

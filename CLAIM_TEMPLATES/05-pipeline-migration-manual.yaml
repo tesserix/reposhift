@@ -1,0 +1,397 @@
+# ==============================================================================
+# MANUAL PIPELINE MIGRATION
+# ==============================================================================
+#
+# What this does:
+# - Converts SPECIFIC pipelines that you manually list
+# - Gives you full control over which pipelines to migrate
+# - Allows custom settings per pipeline (triggers, runners, etc.)
+# - Creates a dedicated workflows repository with organized structure
+#
+# Use this when:
+# - You want to migrate only specific pipelines (not all)
+# - You want to test with a few pipelines first
+# - You need custom settings for each pipeline
+# - You want fine-grained control over the conversion
+#
+# Difference from auto-discovery:
+# - Auto-discovery: Finds all pipelines automatically
+# - Manual: You specify exactly which pipelines to convert
+#
+# ==============================================================================
+
+apiVersion: migration.ado-to-git-migration.io/v1
+kind: PipelineToWorkflow
+metadata:
+  # Give your migration a name (use lowercase and dashes)
+  name: my-manual-pipeline-migration
+  # Which namespace to run this in (usually "ado-migration-operator")
+  namespace: ado-migration-operator
+
+spec:
+  # ==============================================================================
+  # AZURE DEVOPS CONFIGURATION
+  # ==============================================================================
+  source:
+    # Your Azure DevOps organization name
+    organization: YOUR-ORG-NAME-HERE
+
+    # Your Azure DevOps project name
+    project: YOUR-PROJECT-NAME-HERE
+
+    # API URL
+    apiUrl: https://dev.azure.com
+
+    # Authentication
+    auth:
+      servicePrincipal:
+        clientIdRef:
+          name: azure-sp-secret
+          key: client-id
+        clientSecretRef:
+          name: azure-sp-secret
+          key: client-secret
+        tenantIdRef:
+          name: azure-sp-secret
+          key: tenant-id
+
+  # ==============================================================================
+  # GITHUB CONFIGURATION
+  # ==============================================================================
+  target:
+    # Your GitHub organization or username
+    owner: YOUR-GITHUB-ORG-HERE
+
+    # Main repository name
+    repository: YOUR-MAIN-REPO-HERE
+
+    # API URL
+    apiUrl: https://api.github.com
+
+    # Authentication: Choose ONE method below
+    auth:
+      # METHOD 1: GitHub App (RECOMMENDED - secret already exists)
+      appAuth:
+        appIdRef:
+          name: github-app-secret   # Already exists in cluster
+          key: app-id
+        installationIdRef:
+          name: github-app-secret
+          key: installation-id
+        privateKeyRef:
+          name: github-app-secret
+          key: private-key
+
+      # METHOD 2: Personal Access Token (uncomment if using PAT)
+      # tokenRef:
+      #   name: github-token-secret   # Create this secret manually
+      #   key: token
+
+    # Workflows repository configuration
+    workflowsRepository:
+      create: true
+      name: ado-to-git-migration-workflows
+      description: "Converted GitHub Actions workflows from Azure DevOps pipelines"
+      private: true
+      initializeWithReadme: true
+
+    # Default workflow settings
+    defaultWorkflowSettings:
+      triggers:
+        - type: push
+          config:
+            branches: ["main", "develop"]
+        - type: pull_request
+          config:
+            branches: ["main"]
+        - type: workflow_dispatch
+
+      runnerLabels: ["ubuntu-latest"]
+      timeoutMinutes: 60
+
+      environmentVariables:
+        BUILD_CONFIGURATION: "Release"
+        DOTNET_VERSION: "8.0.x"
+        NODE_VERSION: "20.x"
+
+  # ==============================================================================
+  # MANUAL PIPELINE SPECIFICATION
+  # ==============================================================================
+  # List the exact pipelines you want to convert
+  # You need to specify the pipeline ID, name, and type
+  #
+  # How to find pipeline IDs:
+  # 1. Go to Azure DevOps → Pipelines
+  # 2. Click on a pipeline
+  # 3. Look at the URL: dev.azure.com/org/project/_build?definitionId=123
+  # 4. The number after "definitionId=" is the pipeline ID
+  #
+  # For release pipelines:
+  # 1. Go to Azure DevOps → Pipelines → Releases
+  # 2. Click on a release pipeline
+  # 3. Look at the URL: dev.azure.com/org/project/_release?definitionId=456
+  # 4. The number after "definitionId=" is the pipeline ID
+  # ==============================================================================
+
+  pipelines:
+    # ===========================================================================
+    # EXAMPLE 1: Build Pipeline (CI)
+    # ===========================================================================
+    - id: "123"                          # Pipeline ID from ADO
+      name: "CI-Build"                   # Pipeline name (for reference)
+      type: build                        # Pipeline type: build or release
+      targetWorkflowName: "ci-build.yml" # Output filename in workflows repo
+
+      # Optional: Override settings for this specific pipeline
+      settings:
+        # Custom triggers for this pipeline only
+        overrideTriggers:
+          - type: push
+            config:
+              branches: ["main"]
+          - type: schedule
+            config:
+              cron: "0 2 * * *"  # Run at 2 AM daily
+
+        # Custom runner labels for this pipeline only
+        overrideRunnerLabels: ["ubuntu-latest"]
+
+    # ===========================================================================
+    # EXAMPLE 2: Another Build Pipeline
+    # ===========================================================================
+    - id: "124"
+      name: "Unit-Tests"
+      type: build
+      targetWorkflowName: "unit-tests.yml"
+
+    # ===========================================================================
+    # EXAMPLE 3: Release Pipeline (CD)
+    # ===========================================================================
+    - id: "456"
+      name: "Release-Staging"
+      type: release
+      targetWorkflowName: "deploy-staging.yml"
+
+      # Custom settings for release pipeline
+      settings:
+        overrideTriggers:
+          - type: workflow_dispatch    # Manual only
+          - type: workflow_run
+            config:
+              workflows: ["CI-Build"]  # Trigger after CI-Build completes
+              branches: ["main"]
+
+    # ===========================================================================
+    # EXAMPLE 4: Production Release Pipeline
+    # ===========================================================================
+    - id: "457"
+      name: "Release-Production"
+      type: release
+      targetWorkflowName: "deploy-production.yml"
+
+      settings:
+        overrideTriggers:
+          - type: workflow_dispatch    # Manual trigger only
+          - type: release
+            config:
+              types: ["published"]     # Trigger on GitHub release
+
+        # Use self-hosted runners for production
+        overrideRunnerLabels: ["self-hosted", "production"]
+
+    # ===========================================================================
+    # EXAMPLE 5: Build Pipeline with Custom Settings
+    # ===========================================================================
+    - id: "125"
+      name: "Integration-Tests"
+      type: build
+      targetWorkflowName: "integration-tests.yml"
+
+      settings:
+        overrideTriggers:
+          - type: pull_request
+            config:
+              branches: ["main", "develop"]
+          - type: workflow_dispatch
+
+        # High-performance runners for integration tests
+        overrideRunnerLabels: ["ubuntu-latest-4-cores"]
+
+    # ===========================================================================
+    # ADD MORE PIPELINES HERE
+    # ===========================================================================
+    # Copy the pattern above and add your own pipelines
+    # - id: "YOUR-PIPELINE-ID"
+    #   name: "YOUR-PIPELINE-NAME"
+    #   type: build  # or release
+    #   targetWorkflowName: "your-workflow-name.yml"
+
+  # ==============================================================================
+  # CONVERSION TYPE
+  # ==============================================================================
+  type: all  # Convert both build and release pipelines
+
+  # ==============================================================================
+  # CONVERSION SETTINGS
+  # ==============================================================================
+  settings:
+    convertVariables: true
+    convertVariableGroups: true
+    convertServiceConnections: true
+    convertArtifacts: true
+    convertApprovals: true
+    preserveComments: true
+    generateMatrix: true
+    useCompositeActions: false
+    parallelJobs: 5
+    retryAttempts: 3
+
+  # ==============================================================================
+  # VALIDATION RULES
+  # ==============================================================================
+  validationRules:
+    skipValidation: false
+    validateSyntax: true
+    validateActionsExist: true
+    validateSecretsExist: false
+    requiredGitHubFeatures:
+      - "actions"
+      - "environments"
+
+# ==============================================================================
+# FINDING PIPELINE IDS - DETAILED GUIDE
+# ==============================================================================
+#
+# METHOD 1: Through Azure DevOps UI
+# 1. Navigate to Azure DevOps → Your Project → Pipelines
+# 2. Click on the pipeline you want to migrate
+# 3. Look at the browser URL
+# 4. For build pipelines:
+#    URL: https://dev.azure.com/myorg/myproject/_build?definitionId=123
+#    Pipeline ID: 123
+# 5. For release pipelines:
+#    URL: https://dev.azure.com/myorg/myproject/_release?definitionId=456
+#    Pipeline ID: 456
+#
+# METHOD 2: Using Azure DevOps API
+# curl -u :YOUR-PAT https://dev.azure.com/YOUR-ORG/YOUR-PROJECT/_apis/build/definitions?api-version=7.0
+#
+# METHOD 3: Using PowerShell
+# $org = "YOUR-ORG"
+# $project = "YOUR-PROJECT"
+# $pat = "YOUR-PAT"
+# $base64Pat = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$pat"))
+# $headers = @{Authorization = "Basic $base64Pat"}
+# $uri = "https://dev.azure.com/$org/$project/_apis/build/definitions?api-version=7.0"
+# Invoke-RestMethod -Uri $uri -Headers $headers | Select-Object -ExpandProperty value | Select-Object id, name
+#
+# ==============================================================================
+# MIGRATION WORKFLOW
+# ==============================================================================
+#
+# 1. START SMALL
+#    - Begin with 1-2 pipelines to test the conversion
+#    - Review the generated workflows
+#    - Verify they work as expected
+#
+# 2. ADD MORE PIPELINES
+#    - Once comfortable, add more pipelines to the list
+#    - Convert in batches (5-10 at a time)
+#
+# 3. REVIEW & TEST
+#    - Review each generated workflow in the workflows repository
+#    - Update placeholder values and secrets
+#    - Test in development environment
+#
+# 4. DEPLOY TO PRODUCTION
+#    - Copy tested workflows to main repository
+#    - Set up GitHub Environments and secrets
+#    - Enable workflows and verify execution
+#
+# ==============================================================================
+# MONITORING THE MIGRATION
+# ==============================================================================
+#
+# Watch progress:
+# kubectl get pipelinetoworkflow my-manual-pipeline-migration -n ado-migration-operator -w
+#
+# Check status:
+# kubectl describe pipelinetoworkflow my-manual-pipeline-migration -n ado-migration-operator
+#
+# View logs:
+# kubectl logs -n ado-migration-operator deployment/ado-to-git-migration-operator -f
+#
+# Check workflows repository:
+# https://github.com/YOUR-GITHUB-ORG-HERE/ado-to-git-migration-workflows
+#
+# ==============================================================================
+
+---
+# ==============================================================================
+# REQUIRED SECRETS
+# ==============================================================================
+# These secrets should already exist in your cluster from the Helm installation.
+# Verify with: kubectl get secrets -n ado-migration-operator
+#
+# Expected secrets:
+# - azure-sp-secret (Azure Service Principal)
+# - github-app-secret (GitHub App credentials)
+# ==============================================================================
+
+# If secrets don't exist, uncomment and create:
+
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: azure-sp-secret
+#   namespace: ado-migration-operator
+# type: Opaque
+# stringData:
+#   client-id: "YOUR-AZURE-CLIENT-ID-HERE"
+#   client-secret: "YOUR-AZURE-CLIENT-SECRET-HERE"
+#   tenant-id: "YOUR-AZURE-TENANT-ID-HERE"
+
+# ---
+# # Only if using PAT instead of GitHub App
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: github-token-secret
+#   namespace: ado-migration-operator
+# type: Opaque
+# stringData:
+#   token: "ghp_YOUR-GITHUB-TOKEN-HERE"
+
+# ==============================================================================
+# TIPS & BEST PRACTICES
+# ==============================================================================
+#
+# ✅ Start with your most important pipelines first
+# ✅ Test conversion with 1-2 pipelines before migrating all
+# ✅ Use meaningful workflow names (avoid generic names like "pipeline1.yml")
+# ✅ Group related pipelines together (all CI, then all CD)
+# ✅ Review generated workflows for any ADO-specific features
+# ✅ Configure GitHub Environments before deploying release workflows
+# ✅ Set up all required secrets before running workflows
+# ✅ Keep ADO pipelines running until GitHub workflows are validated
+# ✅ Use workflow_dispatch for testing (manual trigger)
+#
+# ==============================================================================
+# COMMON PIPELINE TYPES
+# ==============================================================================
+#
+# CI/Build Pipelines (type: build):
+# - Unit tests
+# - Integration tests
+# - Code quality checks
+# - Build and package
+# - Container image builds
+#
+# CD/Release Pipelines (type: release):
+# - Deploy to development
+# - Deploy to staging
+# - Deploy to production
+# - Database migrations
+# - Infrastructure deployment
+#
+# ==============================================================================

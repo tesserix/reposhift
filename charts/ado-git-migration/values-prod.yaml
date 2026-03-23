@@ -1,0 +1,70 @@
+# Production environment overrides
+# Use with: helm install -f values.yaml -f values-prod.yaml
+
+image:
+  repository: acrbismuthprod.azurecr.io/platform/idp/backend/ado-git-migration
+  pullPolicy: Always
+  # Tag will be set by CI/CD pipeline
+
+# Image pull secrets for ACR (create this secret in your namespace)
+imagePullSecrets:
+  - name: acr-prod-secret
+
+# Operator configuration for prod
+operator:
+  logLevel: "info"
+  enableMetrics: true
+  enableLeaderElection: true
+  enableWebhooks: true
+
+  # Rate limits for production
+  rateLimits:
+    azureDevOps: 100
+    github: 5000
+
+# Resource limits for prod
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+# Autoscaling enabled for prod
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Pod disruption budget for high availability
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Migration namespace
+migrationNamespace:
+  create: true
+  name: ado-migrations-prod
+
+# Auth secrets - managed via external secret management
+auth:
+  createSecrets: false
+  azure:
+    clientId: ""
+    clientSecret: ""
+    tenantId: ""
+  github:
+    token: ""
+
+# Network policies disabled to ensure PostgreSQL connectivity works
+# NOTE: Enable only if your cluster's CNI plugin properly supports NetworkPolicy podSelector for egress
+networkPolicy:
+  enabled: false
+
+# Service monitor for Prometheus
+serviceMonitor:
+  enabled: true
+  interval: 30s

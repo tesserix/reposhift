@@ -1,0 +1,402 @@
+# ==============================================================================
+# AUTO-DISCOVERY PIPELINE MIGRATION
+# ==============================================================================
+#
+# What this does:
+# - Automatically finds ALL pipelines (build & release) in your Azure DevOps project
+# - Converts them to GitHub Actions workflows with best practices
+# - Creates a dedicated workflows repository with organized structure
+# - Preserves pipeline names for easy syncing later
+#
+# Use this when:
+# - You have many pipelines (10, 50, 100+) and don't want to list them manually
+# - You want to migrate all ADO pipelines to GitHub Actions at once
+# - You want production-ready workflows with best practices built-in
+# - You want a separate repo to review workflows before deployment
+#
+# What you get:
+# - Repository: ado-to-git-migration-workflows (configurable)
+# - Directory structure:
+#   - pipelines/    (build pipelines)
+#   - releases/     (release pipelines)
+# - Production-ready workflow files with:
+#   - Multi-stage deployments
+#   - Blue-green deployment strategy
+#   - Environment protection rules
+#   - Automatic rollback
+#   - Smoke tests
+#
+# ==============================================================================
+
+apiVersion: migration.ado-to-git-migration.io/v1
+kind: PipelineToWorkflow
+metadata:
+  # Give your migration a name (use lowercase and dashes)
+  name: my-pipeline-migration
+  # Which namespace to run this in (usually "ado-migration-operator")
+  namespace: ado-migration-operator
+
+spec:
+  # ==============================================================================
+  # AZURE DEVOPS CONFIGURATION
+  # ==============================================================================
+  source:
+    # Your Azure DevOps organization name (from URL: dev.azure.com/YOUR-ORG)
+    organization: YOUR-ORG-NAME-HERE
+
+    # Your Azure DevOps project name (where your pipelines are)
+    project: YOUR-PROJECT-NAME-HERE
+
+    # API URL (usually don't need to change this)
+    apiUrl: https://dev.azure.com
+
+    # Authentication: Use Service Principal (recommended for production)
+    auth:
+      servicePrincipal:
+        # Azure App Registration Client ID reference
+        clientIdRef:
+          name: azure-sp-secret      # Standard secret name
+          key: client-id             # Key inside the secret
+
+        # Azure App Registration Client Secret reference
+        clientSecretRef:
+          name: azure-sp-secret      # Standard secret name
+          key: client-secret         # Key inside the secret
+
+        # Azure Tenant ID reference
+        tenantIdRef:
+          name: azure-sp-secret      # Standard secret name
+          key: tenant-id             # Key inside the secret
+
+  # ==============================================================================
+  # GITHUB CONFIGURATION
+  # ==============================================================================
+  target:
+    # Your GitHub organization or username (where workflows will be created)
+    owner: YOUR-GITHUB-ORG-HERE
+
+    # Main repository name (reference repository for the migration)
+    repository: YOUR-MAIN-REPO-HERE
+
+    # API URL (usually don't need to change this)
+    apiUrl: https://api.github.com
+
+    # Authentication: Choose ONE method below
+    auth:
+      # ===========================================================================
+      # METHOD 1: Personal Access Token (PAT) - Simple, good for testing
+      # ===========================================================================
+      # Uncomment if using PAT:
+      # tokenRef:
+      #   name: github-token-secret   # Create this secret manually
+      #   key: token
+
+      # ===========================================================================
+      # METHOD 2: GitHub App (RECOMMENDED for production)
+      # ===========================================================================
+      # Uncomment if using GitHub App (secret already exists):
+      appAuth:
+        appIdRef:
+          name: github-app-secret   # Already exists in cluster
+          key: app-id
+        installationIdRef:
+          name: github-app-secret
+          key: installation-id
+        privateKeyRef:
+          name: github-app-secret
+          key: private-key
+
+    # ===========================================================================
+    # WORKFLOWS REPOSITORY (NEW! - Dedicated repo for converted workflows)
+    # ===========================================================================
+    workflowsRepository:
+      # Create a dedicated repository for workflows
+      create: true
+
+      # Name of the workflows repository
+      # Default: ado-to-git-migration-workflows
+      name: ado-to-git-migration-workflows
+
+      # Description for the repository
+      description: "Converted GitHub Actions workflows from Azure DevOps pipelines"
+
+      # Make repository private (recommended)
+      private: true
+
+      # Initialize with README (recommended)
+      initializeWithReadme: true
+
+    # Default settings for all generated workflows
+    defaultWorkflowSettings:
+      # Default triggers for workflows
+      triggers:
+        - type: push
+          config:
+            branches: ["main", "develop"]
+        - type: pull_request
+          config:
+            branches: ["main"]
+        - type: workflow_dispatch    # Manual trigger
+
+      # Default runner labels
+      runnerLabels: ["ubuntu-latest"]
+
+      # Default timeout for jobs (in minutes)
+      timeoutMinutes: 60
+
+      # Default environment variables
+      environmentVariables:
+        BUILD_CONFIGURATION: "Release"
+        DOTNET_VERSION: "8.0.x"
+        NODE_VERSION: "20.x"
+
+  # ==============================================================================
+  # AUTO-DISCOVERY (THE MAGIC PART!)
+  # ==============================================================================
+  autoDiscovery:
+    # Enable automatic discovery of all pipelines
+    enabled: true
+
+    # Include build pipelines (CI pipelines)
+    includeBuildPipelines: true
+
+    # Include release pipelines (CD pipelines)
+    includeReleasePipelines: true
+
+    # ===========================================================================
+    # OPTIONAL FILTERS (uncomment to use)
+    # ===========================================================================
+
+    # Filter by folder path (only pipelines in specific folder)
+    # Example: Only Production pipelines
+    # folderFilter: "/Production/*"
+
+    # Filter by name pattern (regex)
+    # Example: Only pipelines starting with "CI-" or "CD-"
+    # nameFilter: "^(CI|CD)-.*"
+
+    # Limit maximum number of pipelines to convert
+    # Useful for testing - start with 5-10 pipelines first!
+    # maxPipelines: 10
+
+  # ==============================================================================
+  # CONVERSION TYPE
+  # ==============================================================================
+  # Options: build, release, yaml, classic, all
+  # - build: Only build pipelines
+  # - release: Only release pipelines
+  # - all: Both build and release (recommended)
+  type: all
+
+  # ==============================================================================
+  # CONVERSION SETTINGS
+  # ==============================================================================
+  settings:
+    # Convert ADO variables to GitHub environment variables
+    convertVariables: true
+
+    # Convert ADO variable groups to GitHub secrets (with TODO comments)
+    convertVariableGroups: true
+
+    # Convert ADO service connections to GitHub secrets (with TODO comments)
+    convertServiceConnections: true
+
+    # Convert ADO artifacts to GitHub artifacts
+    convertArtifacts: true
+
+    # Convert ADO approvals to GitHub Environments
+    convertApprovals: true
+
+    # Preserve comments from ADO pipelines
+    preserveComments: true
+
+    # Generate matrix builds if applicable
+    generateMatrix: true
+
+    # Use composite actions (advanced)
+    useCompositeActions: false
+
+    # Number of pipelines to convert in parallel
+    parallelJobs: 5
+
+    # Retry attempts for failed conversions
+    retryAttempts: 3
+
+    # ===========================================================================
+    # OPTIONAL: Custom task mappings (uncomment to override defaults)
+    # ===========================================================================
+    # taskMappings:
+    #   "NuGetCommand@2":
+    #     action: "actions/setup-dotnet@v4"
+    #     version: "v4"
+    #     inputMappings:
+    #       command: "dotnet-command"
+    #   "NodeTool@0":
+    #     action: "actions/setup-node@v4"
+    #     version: "v4"
+    #     inputMappings:
+    #       versionSpec: "node-version"
+
+  # ==============================================================================
+  # VALIDATION RULES
+  # ==============================================================================
+  validationRules:
+    # Skip all validation (not recommended)
+    skipValidation: false
+
+    # Validate workflow YAML syntax
+    validateSyntax: true
+
+    # Validate that GitHub Actions exist
+    validateActionsExist: true
+
+    # Validate that secrets exist (set to false initially)
+    # You'll need to create secrets after workflows are generated
+    validateSecretsExist: false
+
+    # Required GitHub features
+    requiredGitHubFeatures:
+      - "actions"        # GitHub Actions enabled
+      - "environments"   # For deployment workflows
+
+# ==============================================================================
+# WHAT HAPPENS AFTER YOU APPLY THIS?
+# ==============================================================================
+#
+# 1. Operator discovers all pipelines from your ADO project
+# 2. Filters them based on your settings (folder, name, max count)
+# 3. Creates the workflows repository: ado-to-git-migration-workflows
+# 4. Converts each pipeline to GitHub workflow format
+# 5. Pushes workflows to the repository in organized directories:
+#    - pipelines/   (build pipelines)
+#    - releases/    (release pipelines)
+#
+# The workflows repository will have:
+# - README.md (comprehensive guide)
+# - MIGRATION_SUMMARY.md (auto-generated list of all conversions)
+# - pipelines/README.md (build pipelines guide)
+# - releases/README.md (release pipelines guide)
+# - All converted workflow files (.yml)
+#
+# ==============================================================================
+# NEXT STEPS AFTER MIGRATION
+# ==============================================================================
+#
+# 1. Review workflows in the workflows repository
+# 2. Update placeholder values (marked with TODO)
+# 3. Configure GitHub secrets:
+#    - AZURE_CREDENTIALS (Azure service principal)
+#    - NPM_TOKEN (if using npm)
+#    - NUGET_API_KEY (if using NuGet)
+# 4. Set up GitHub Environments:
+#    - development
+#    - staging
+#    - production (with required reviewers)
+# 5. Test workflows in development first
+# 6. Copy tested workflows to your main repository
+# 7. Gradually migrate from ADO to GitHub Actions
+#
+# ==============================================================================
+# MONITORING THE MIGRATION
+# ==============================================================================
+#
+# Watch migration progress:
+# kubectl get pipelinetoworkflow my-pipeline-migration -n ado-migration-operator -w
+#
+# Check detailed status:
+# kubectl describe pipelinetoworkflow my-pipeline-migration -n ado-migration-operator
+#
+# View operator logs:
+# kubectl logs -n ado-migration-operator deployment/ado-to-git-migration-operator -f
+#
+# Check GitHub workflows repository:
+# https://github.com/YOUR-GITHUB-ORG-HERE/ado-to-git-migration-workflows
+#
+# ==============================================================================
+# EXAMPLE: START WITH 5 PIPELINES FIRST (RECOMMENDED)
+# ==============================================================================
+#
+# For your first migration, uncomment this to limit to 5 pipelines:
+# autoDiscovery:
+#   enabled: true
+#   includeBuildPipelines: true
+#   includeReleasePipelines: true
+#   maxPipelines: 5  # Start small!
+#
+# ==============================================================================
+
+---
+# ==============================================================================
+# REQUIRED SECRETS SETUP
+# ==============================================================================
+# These secrets should already exist in your cluster from the Helm installation.
+# If not, create them using the commands below or apply the YAML.
+# ==============================================================================
+
+# Check existing secrets:
+# kubectl get secrets -n ado-migration-operator
+
+# ==============================================================================
+# The following secrets should already exist (created by Helm):
+# - azure-sp-secret (Azure Service Principal)
+# - github-app-secret (GitHub App credentials)
+# ==============================================================================
+
+# If secrets DON'T exist, uncomment and apply the appropriate secret below:
+
+# ==============================================================================
+# Azure Service Principal Secret (if not exists)
+# ==============================================================================
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: azure-sp-secret
+#   namespace: ado-migration-operator
+# type: Opaque
+# stringData:
+#   client-id: "YOUR-AZURE-CLIENT-ID-HERE"
+#   client-secret: "YOUR-AZURE-CLIENT-SECRET-HERE"
+#   tenant-id: "YOUR-AZURE-TENANT-ID-HERE"
+
+# ==============================================================================
+# GitHub Personal Access Token (if using PAT instead of GitHub App)
+# ==============================================================================
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: github-token-secret
+#   namespace: ado-migration-operator
+# type: Opaque
+# stringData:
+#   token: "ghp_YOUR-GITHUB-TOKEN-HERE"
+
+# ==============================================================================
+# GitHub App Secret (should already exist from Helm installation)
+# ==============================================================================
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: github-app-secret
+#   namespace: ado-migration-operator
+# type: Opaque
+# stringData:
+#   app-id: "YOUR-GITHUB-APP-ID-HERE"
+#   installation-id: "YOUR-INSTALLATION-ID-HERE"
+#   private-key: |
+#     -----BEGIN RSA PRIVATE KEY-----
+#     YOUR-PRIVATE-KEY-HERE
+#     -----END RSA PRIVATE KEY-----
+
+# ==============================================================================
+# PRODUCTION TIPS
+# ==============================================================================
+#
+# ✅ For production, use GitHub App instead of PAT (higher rate limits)
+# ✅ Start with 5-10 pipelines to test the conversion quality
+# ✅ Review generated workflows thoroughly before using in production
+# ✅ Test workflows in development environment first
+# ✅ Configure all required secrets before running workflows
+# ✅ Set up GitHub Environments with protection rules
+# ✅ Use External Secrets Operator to pull secrets from Azure Key Vault
+#
+# ==============================================================================

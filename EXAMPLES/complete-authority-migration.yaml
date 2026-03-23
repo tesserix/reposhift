@@ -1,0 +1,371 @@
+# ==================================================================================
+# COMPLETE MIGRATION EXAMPLE: Authority Repositories + Work Items
+# ==================================================================================
+# This example demonstrates a complete migration workflow:
+#  1. Migrate 2 repositories from ADO to GitHub
+#  2. Create GitHub Projects for each repository (with proper naming)
+#  3. Migrate work items from ADO Altitude Project to GitHub Issues
+#
+# NAMING CONVENTION:
+#  - Special characters (-, _) are replaced with spaces
+#  - First word is capitalized
+#  - Examples:
+#    * "java-authority" → "Java Authority"
+#    * "devops-external-infra-automation" → "Devops External Infra Automation"
+# ==================================================================================
+
+---
+# Step 1: Migrate Repositories from Azure DevOps to GitHub
+apiVersion: migration.ado-to-git-migration.io/v1
+kind: AdoToGitMigration
+metadata:
+  name: authority-repos-migration
+  namespace: ado-migration-operator
+  labels:
+    migration-type: repository
+    project: authority
+    batch: complete-migration
+spec:
+  type: repository
+
+  # Source: Azure DevOps Configuration
+  source:
+    organization: civica-international-lg
+    project: Authority
+    auth:
+      pat:
+        tokenRef:
+          name: azure-ado-pat
+          key: token
+          namespace: ado-migration-operator
+
+  # Target: GitHub Configuration
+  target:
+    owner: civica
+    auth:
+      appAuth:
+        appIdRef:
+          name: github-app-secret
+          key: app-id
+          namespace: ado-migration-operator
+        installationIdRef:
+          name: github-app-secret
+          key: installation-id
+          namespace: ado-migration-operator
+        privateKeyRef:
+          name: github-app-secret
+          key: private-key
+          namespace: ado-migration-operator
+
+  # Resources to migrate
+  resources:
+    - type: repository
+      sourceId: java-authority-repo-id
+      sourceName: java-authority
+      targetName: product-lg-authority-java-authority
+
+    - type: repository
+      sourceId: devops-ext-infra-repo-id
+      sourceName: devops-external-infra-automation
+      targetName: product-lg-authority-devops-external-infra-automation
+
+    - type: repository
+      sourceId: net-eftpos-service-repo-id
+      sourceName: net-eftpos-service
+      targetName: product-lg-authority-net-eftpos-service
+
+  # Migration settings - Optimized for performance and reliability
+  settings:
+    # Batch processing for better performance
+    batchSize: 50
+    batchDelayMinutes: 2
+
+    # Parallel processing
+    parallelWorkers: 3
+
+    # Retry settings
+    retryAttempts: 5
+
+    # History and content settings
+    # maxHistoryDays: Controls how many years of commit history to migrate
+    # - Default: 730 days (2 years)
+    # - Minimum: 1 day
+    # - Maximum: 3650 days (10 years)
+    # - Recommended: 730-1825 days (2-5 years) for optimal performance
+    maxHistoryDays: 730  # 2 years of history (can be adjusted up to 3650 for 10 years)
+
+    # maxCommitCount: Maximum number of commits to migrate (safety limit)
+    # - Default: 2000
+    # - Maximum: 50000
+    # - Works in conjunction with maxHistoryDays
+    maxCommitCount: 10000  # Maximum commits to migrate
+
+    # Include additional metadata
+    includePullRequests: true
+    includeTags: true
+    handleLFS: true
+
+    # Branch filtering - exclude unwanted branches from migration
+    # Patterns: "feature/*" excludes all feature branches, "develop/7.0" excludes exact branch
+    repository:
+      excludeBranches:
+        - "feature/*"
+        - "bugfix/*"
+        - "hotfix/*"
+        - "personal/*"
+    includeBuilds: false
+    includeWorkItems: false  # Work items migrated separately
+
+---
+# Step 2a: Create GitHub Project for Java Authority Repository
+apiVersion: migration.ado-to-git-migration.io/v1
+kind: GitHubProject
+metadata:
+  name: java-authority-project
+  namespace: ado-migration-operator
+  labels:
+    repository: java-authority
+    batch: complete-migration
+spec:
+  owner: civica
+
+  # Project name with proper formatting (special chars → spaces, capitalize first)
+  projectName: "Java Authority"
+  description: "GitHub Project for Java Authority repository - migrated from Azure DevOps"
+
+  # Use blank template for custom columns
+  template: blank
+
+  # Link to the migrated repository
+  repository: "civica/product-lg-authority-java-authority"
+  autoLink: true
+
+  # Authentication
+  auth:
+    appAuth:
+      appIdRef:
+        name: github-app-secret
+        key: app-id
+        namespace: ado-migration-operator
+      installationIdRef:
+        name: github-app-secret
+        key: installation-id
+        namespace: ado-migration-operator
+      privateKeyRef:
+        name: github-app-secret
+        key: private-key
+        namespace: ado-migration-operator
+
+  # Custom status field matching ADO board columns
+  statusField:
+    name: "ADO Status"
+    options:
+      - name: "New"
+        description: "Newly created work items"
+        color: "gray"
+
+      - name: "Active"
+        description: "Currently being worked on"
+        color: "blue"
+
+      - name: "In Progress"
+        description: "Work in progress"
+        color: "yellow"
+
+      - name: "Resolved"
+        description: "Work completed pending verification"
+        color: "green"
+
+      - name: "Closed"
+        description: "Work completed and verified"
+        color: "purple"
+
+      - name: "Removed"
+        description: "Work item removed/cancelled"
+        color: "red"
+
+---
+# Step 2b: Create GitHub Project for DevOps External Infra Automation Repository
+apiVersion: migration.ado-to-git-migration.io/v1
+kind: GitHubProject
+metadata:
+  name: devops-external-infra-automation-project
+  namespace: ado-migration-operator
+  labels:
+    repository: devops-external-infra-automation
+    batch: complete-migration
+spec:
+  owner: civica
+
+  # Project name with proper formatting
+  projectName: "Devops External Infra Automation"
+  description: "GitHub Project for DevOps External Infrastructure Automation - migrated from Azure DevOps"
+
+  template: blank
+
+  # Link to the migrated repository
+  repository: "civica/product-lg-authority-devops-external-infra-automation"
+  autoLink: true
+
+  # Authentication
+  auth:
+    appAuth:
+      appIdRef:
+        name: github-app-secret
+        key: app-id
+        namespace: ado-migration-operator
+      installationIdRef:
+        name: github-app-secret
+        key: installation-id
+        namespace: ado-migration-operator
+      privateKeyRef:
+        name: github-app-secret
+        key: private-key
+        namespace: ado-migration-operator
+
+  # Custom status field
+  statusField:
+    name: "ADO Status"
+    options:
+      - name: "New"
+        color: "gray"
+      - name: "Active"
+        color: "blue"
+      - name: "In Progress"
+        color: "yellow"
+      - name: "Resolved"
+        color: "green"
+      - name: "Closed"
+        color: "purple"
+      - name: "Removed"
+        color: "red"
+
+---
+# Step 3: Migrate Work Items from ADO Authority Project to GitHub Issues
+# Starting with Epic work items only to stay under Azure DevOps 20,000 item query limit
+apiVersion: migration.ado-to-git-migration.io/v1
+kind: WorkItemMigration
+metadata:
+  name: authority-project-workitems
+  namespace: ado-migration-operator
+  labels:
+    project: authority
+    batch: complete-migration
+spec:
+  # Source: Azure DevOps Authority Project
+  source:
+    organization: civica-international-lg
+    project: Authority
+    auth:
+      pat:
+        tokenRef:
+          name: azure-ado-pat
+          key: token
+          namespace: ado-migration-operator
+
+  # Target: GitHub Repository
+  target:
+    owner: civica
+    # Repository name only (without owner prefix) - will be validated against ongoing migrations
+    # If the repository doesn't exist, it will wait for a migration to create it
+    repository: product-lg-authority-java-authority  # Use the migrated repository
+
+    # Reference to the GitHub Project CR name (not the project title)
+    projectRef: java-authority-project  # Link to the Java Authority project CR
+
+    auth:
+      appAuth:
+        appIdRef:
+          name: github-app-secret
+          key: app-id
+          namespace: ado-migration-operator
+        installationIdRef:
+          name: github-app-secret
+          key: installation-id
+          namespace: ado-migration-operator
+        privateKeyRef:
+          name: github-app-secret
+          key: private-key
+          namespace: ado-migration-operator
+
+  # Work item filters - Only Epic type to reduce result set
+  filters:
+    # Migrate only Epic work items
+    types:
+      - Epic
+
+    # Filter by state (optional - commented out to migrate all states)
+    states:
+      - Active
+      # - New
+      # - Resolved
+      # - Closed
+
+    # Filter by tags (optional)
+    # tags: []
+
+    # Filter by assigned users (optional)
+    # assignedTo: []
+
+  # Migration settings - Optimized for batch processing and performance
+  settings:
+    # Batch processing for better performance and rate limit management
+    batchSize: 20  # Process 20 work items at a time
+
+    # Include metadata
+    includeAttachments: true
+    includeHistory: true
+    includeTags: true
+    preserveRelationships: true  # Maintain links between work items
+
+    # Field mapping from ADO to GitHub
+    fieldMapping:
+      System.Title: "title"
+      System.Description: "body"
+      System.State: "state"
+      System.AssignedTo: "assignee"
+      System.Tags: "labels"
+      System.AreaPath: "label:area"
+      System.IterationPath: "label:iteration"
+      Microsoft.VSTS.Common.Priority: "label:priority"
+      Microsoft.VSTS.Common.Severity: "label:severity"
+      Microsoft.VSTS.Scheduling.StoryPoints: "body:storypoints"
+      Microsoft.VSTS.Common.AcceptanceCriteria: "body:acceptance"
+
+    # State mapping from ADO to GitHub
+    stateMapping:
+      New: "open"
+      Active: "open"
+      Resolved: "closed"
+      Closed: "closed"
+      Removed: "closed"
+      "In Progress": "open"
+      "To Do": "open"
+      Done: "closed"
+
+    # Type mapping from ADO work item types to GitHub labels
+    # Format: "ADO Type": "github-label"
+    # Unmapped types will default to "user-story" label
+    typeMapping:
+      Epic: "epic"
+      Feature: "feature"
+      "User Story": "user-story"
+      Bug: "bug"
+      Task: "task"
+      Issue: "issue"
+
+---
+# Optional: Monitoring and Status Check
+# Use this to monitor the migration progress:
+#
+# kubectl get adotogitmigration -n ado-migration-operator --watch
+# kubectl get githubproject -n ado-migration-operator --watch
+# kubectl get workitemmigration -n ado-migration-operator --watch  # (if uncommented above)
+#
+# Check detailed status:
+# kubectl describe adotogitmigration authority-repos-migration -n ado-migration-operator
+# kubectl describe githubproject java-authority-project -n ado-migration-operator
+# kubectl describe workitemmigration authority-project-workitems -n ado-migration-operator  # (if uncommented above)
+#
+# View real-time progress:
+# kubectl get adotogitmigration -n ado-migration-operator -o jsonpath='{.items[*].status.progress}'

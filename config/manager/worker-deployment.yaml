@@ -1,0 +1,264 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ado-to-git-migration-worker
+  namespace: migration-system
+  labels:
+    app: ado-to-git-migration
+    component: worker
+    control-plane: worker
+spec:
+  replicas: 2  # Minimum replicas, HPA will scale this
+  selector:
+    matchLabels:
+      app: ado-to-git-migration
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: ado-to-git-migration
+        component: worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: ado-to-git-migration-worker
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+      containers:
+      - name: worker
+        image: ado-to-git-migration:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /manager
+        args:
+        - --mode=worker
+        - --leader-elect=false
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=:8080
+        - --zap-log-level=info
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: WORKER_MODE
+          value: "true"
+        - name: ENABLE_WEBHOOKS
+          value: "false"
+        ports:
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        - name: health
+          containerPort: 8081
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /cache
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}
+      terminationGracePeriodSeconds: 300  # Allow time for migrations to complete
+      priorityClassName: migration-worker
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ado-to-git-migration-controller
+  namespace: migration-system
+  labels:
+    app: ado-to-git-migration
+    component: controller
+    control-plane: controller-manager
+spec:
+  replicas: 1  # Controller should be singleton with leader election
+  selector:
+    matchLabels:
+      app: ado-to-git-migration
+      component: controller
+  template:
+    metadata:
+      labels:
+        app: ado-to-git-migration
+        component: controller
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: ado-to-git-migration-controller
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+      containers:
+      - name: manager
+        image: ado-to-git-migration:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /manager
+        args:
+        - --mode=controller
+        - --leader-elect=true
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=:8080
+        - --zap-log-level=info
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CONTROLLER_MODE
+          value: "true"
+        ports:
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        - name: health
+          containerPort: 8081
+          protocol: TCP
+        - name: webhook
+          containerPort: 9443
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: cert
+          mountPath: /tmp/k8s-webhook-server/serving-certs
+          readOnly: true
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: cert
+        secret:
+          secretName: webhook-server-cert
+          optional: true
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ado-to-git-migration-worker-metrics
+  namespace: migration-system
+  labels:
+    app: ado-to-git-migration
+    component: worker
+spec:
+  type: ClusterIP
+  selector:
+    app: ado-to-git-migration
+    component: worker
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: metrics
+    protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ado-to-git-migration-controller-metrics
+  namespace: migration-system
+  labels:
+    app: ado-to-git-migration
+    component: controller
+spec:
+  type: ClusterIP
+  selector:
+    app: ado-to-git-migration
+    component: controller
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: metrics
+    protocol: TCP
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: migration-worker
+value: 1000
+globalDefault: false
+description: "Priority class for migration worker pods"
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ado-to-git-migration-worker-pdb
+  namespace: migration-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: ado-to-git-migration
+      component: worker

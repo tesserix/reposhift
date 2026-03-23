@@ -1,0 +1,7 @@
+{{- if .Values.crds.install }}
+{{ .Files.Get "crds/adotogitmigrations.yaml" }}
+---
+{{ .Files.Get "crds/adodiscoveries.yaml" }}
+---
+{{ .Files.Get "crds/pipelinetoworkflows.yaml" }}
+{{- end }}

@@ -1,0 +1,105 @@
+# Simple values for Migration UI Dashboard
+
+# Docker image settings
+image:
+  repository: acrbismuthdevtest.azurecr.io/platform/idp/microservices/migration-ui-dashboard
+  pullPolicy: IfNotPresent
+  tag: latest
+
+# Number of replicas
+replicaCount: 2
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000  # Your UI app port (adjust if needed)
+
+# Resource limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Backend service connections
+backend:
+  # Migration operator backend service
+  operatorService:
+    host: ado-migration-operator.ado-migration-operator.svc.cluster.local
+    port: 8080
+    # API endpoints
+    healthEndpoint: /health
+    metricsEndpoint: /metrics
+    migrationsEndpoint: /api/v1/migrations
+
+  # Kubernetes API (for fetching migration jobs directly)
+  kubernetesApi:
+    enabled: true
+    namespace: ado-migration-operator
+
+# Ingress (optional - for external access)
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: migration-dashboard.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: migration-dashboard-tls
+      hosts:
+        - migration-dashboard.example.com
+
+# Environment variables for your UI app
+env:
+  # Node environment
+  NODE_ENV: production
+  # Backend API URL (will be set in configmap)
+  BACKEND_API_URL: ""
+  # UI port
+  PORT: "3000"
+  # Enable/disable features
+  ENABLE_METRICS: "true"
+  ENABLE_LOGS: "true"
+
+# Health checks
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+# Pod labels
+podLabels:
+  app: migration-ui-dashboard
+  component: frontend
+
+# Pod annotations
+podAnnotations: {}
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Service account
+serviceAccount:
+  create: true
+  name: migration-ui-dashboard
+  annotations: {}

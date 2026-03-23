@@ -1,0 +1,171 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ado-git-migration.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ado-git-migration.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: 1
+  {{- end }}
+  # Use Recreate strategy to avoid PVC multi-attach issues with RWO volumes
+  # This ensures the old pod is terminated before the new pod starts
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ado-git-migration.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "ado-git-migration.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ado-git-migration.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: manager
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+          - /manager
+          args:
+          - --leader-elect={{ .Values.operator.enableLeaderElection }}
+          - --metrics-bind-address=:{{ .Values.operator.metrics.port }}
+          - --health-probe-bind-address=:{{ .Values.operator.health.port }}
+          - --http-bind-address=:{{ .Values.operator.http.port }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.operator.http.port }}
+              protocol: TCP
+            - name: health
+              containerPort: {{ .Values.operator.health.port }}
+              protocol: TCP
+            {{- if .Values.operator.enableWebhooks }}
+            - name: webhook
+              containerPort: {{ .Values.operator.webhook.port }}
+              protocol: TCP
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.operator.health.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.operator.health.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ENABLE_METRICS
+              value: "{{ .Values.operator.enableMetrics }}"
+            - name: RATE_LIMIT_PER_CLIENT
+              value: "{{ .Values.operator.rateLimits.perClient }}"
+            - name: RATE_LIMIT_GLOBAL
+              value: "{{ .Values.operator.rateLimits.global }}"
+            - name: RATE_LIMIT_ADO
+              value: "{{ .Values.operator.rateLimits.azureDevOps }}"
+            - name: RATE_LIMIT_GITHUB
+              value: "{{ .Values.operator.rateLimits.github }}"
+            - name: DEFAULT_MAX_HISTORY_DAYS
+              value: "{{ .Values.operator.defaultSettings.maxHistoryDays }}"
+            - name: DEFAULT_MAX_COMMIT_COUNT
+              value: "{{ .Values.operator.defaultSettings.maxCommitCount }}"
+            - name: DEFAULT_BATCH_SIZE
+              value: "{{ .Values.operator.defaultSettings.batchSize }}"
+            - name: DEFAULT_RETRY_ATTEMPTS
+              value: "{{ .Values.operator.defaultSettings.retryAttempts }}"
+            - name: DEFAULT_PARALLEL_WORKERS
+              value: "{{ .Values.operator.defaultSettings.parallelWorkers }}"
+            {{- if .Values.operator.batchDelayMinutes }}
+            - name: BATCH_DELAY_MINUTES
+              value: "{{ .Values.operator.batchDelayMinutes }}"
+            {{- end }}
+            {{- if .Values.persistence.enabled }}
+            - name: MIGRATION_WORKSPACE
+              value: {{ .Values.persistence.mountPath | quote }}
+            {{- end }}
+            {{- if .Values.migrationCache.enabled }}
+            - name: MIGRATION_CACHE_ENABLED
+              value: "true"
+            - name: MIGRATION_CACHE_RETENTION_HOURS
+              value: "{{ .Values.migrationCache.retentionHours }}"
+            - name: MIGRATION_CACHE_MAX_ENTRIES
+              value: "{{ .Values.migrationCache.maxEntries }}"
+            - name: MIGRATION_CACHE_CLEANUP_INTERVAL_MINUTES
+              value: "{{ .Values.migrationCache.cleanupIntervalMinutes }}"
+            {{- end }}
+            {{- if .Values.postgresql.enabled }}
+            - name: POSTGRES_ENABLED
+              value: "true"
+            - name: POSTGRES_HOST
+              value: "{{ include "ado-git-migration.fullname" . }}-postgresql.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: POSTGRES_PORT
+              value: "{{ .Values.postgresql.connection.port }}"
+            - name: POSTGRES_DATABASE
+              value: "{{ .Values.postgresql.database }}"
+            - name: POSTGRES_USER
+              value: "{{ .Values.postgresql.user }}"
+            - name: POSTGRES_SSLMODE
+              value: "disable"
+            {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: config-volume
+              mountPath: /etc/ado-git-migration
+              readOnly: true
+            {{- if .Values.persistence.enabled }}
+            - name: migration-storage
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: config-volume
+          configMap:
+            name: {{ include "ado-git-migration.fullname" . }}-config
+        {{- if .Values.persistence.enabled }}
+        - name: migration-storage
+          persistentVolumeClaim:
+            claimName: {{ include "ado-git-migration.fullname" . }}-storage
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

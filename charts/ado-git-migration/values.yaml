@@ -1,0 +1,313 @@
+# Default values for ado-git-migration.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Operator image settings
+image:
+  # Image repository in ACR - override with values-dev.yaml or values-prod.yaml
+  repository: ghcr.io/tesserix/reposhift
+  pullPolicy: Always
+  # Overrides the image tag whose default is the chart appVersion.
+  # Tag is set dynamically from CI/CD pipeline
+  tag: latest
+
+# Image pull secrets
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Operator configuration
+operator:
+  # Log level: debug, info, warn, error
+  logLevel: "info"
+  # Enable metrics
+  enableMetrics: true
+  # Enable leader election for high availability
+  enableLeaderElection: true
+  # Enable webhooks
+  enableWebhooks: false
+  # HTTP server settings
+  http:
+    port: 8080
+  # Metrics server settings
+  metrics:
+    port: 8082
+  # Health probe settings
+  health:
+    port: 8081
+  # Webhook settings
+  webhook:
+    port: 9443
+  # Rate limiting settings
+  rateLimits:
+    perClient: 100  # Requests per minute per client
+    global: 1000    # Global requests per second
+    azureDevOps: 60  # Requests per minute to Azure DevOps API
+    github: 5000     # Requests per hour to GitHub API
+  # Default migration settings
+  defaultSettings:
+    maxHistoryDays: 730  # 2 years (changed from 500 for consistency)
+    maxCommitCount: 2000
+    batchSize: 10
+    retryAttempts: 3
+    parallelWorkers: 5
+
+# Authentication configuration
+auth:
+  # Create authentication secrets (set to false if secrets are created externally)
+  createSecrets: false
+
+  # Azure Service Principal credentials
+  azure:
+    clientId: ""
+    clientSecret: ""
+    tenantId: ""
+
+  # GitHub authentication - Choose ONE method:
+  # Option A: Personal Access Token (PAT) - simpler, good for testing
+  github:
+    # Set this for PAT authentication
+    token: ""
+
+  # Option B: GitHub App (recommended for production) - higher rate limits
+  githubApp:
+    # Set these for GitHub App authentication
+    appId: ""
+    installationId: ""
+    privateKey: ""  # Base64 encoded private key
+
+# Kubernetes service account configuration
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+# Resource requests and limits
+# IMPORTANT: These are MINIMUM values for light migrations (< 1 year history)
+# For production with 5-10 year history, use values-production.yaml which sets:
+#   limits: cpu=4000m, memory=8Gi
+#   requests: cpu=1000m, memory=2Gi
+resources:
+  limits:
+    cpu: 1000m        # Increased from 500m (2x)
+    memory: 2Gi       # Increased from 512Mi (4x) - minimum for 2-year migrations
+  requests:
+    cpu: 250m         # Increased from 100m (2.5x)
+    memory: 512Mi     # Increased from 128Mi (4x)
+
+# Autoscaling configuration
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+
+# KEDA configuration
+keda:
+  enabled: false
+  pollingInterval: 30
+  cooldownPeriod: 300
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc.cluster.local:9090
+        metricName: http_requests_total
+        threshold: "100"
+        query: sum(rate(http_requests_total{service="ado-git-migration"}[2m]))
+    - type: cpu
+      metadata:
+        type: Utilization
+        value: "80"
+    - type: memory
+      metadata:
+        type: Utilization
+        value: "80"
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - ado-git-migration
+        topologyKey: kubernetes.io/hostname
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8080
+  healthPort: 8081
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    # Enable WebSocket support
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "Upgrade";
+  hosts:
+    - host: ado-migration.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: ado-migration-tls
+      hosts:
+        - ado-migration.example.com
+
+# Network policy
+# NOTE: Disabled by default due to CNI plugin compatibility issues with podSelector egress rules
+# Enable only if your cluster's CNI plugin properly supports NetworkPolicy podSelector for egress
+networkPolicy:
+  enabled: false
+  ingressRules:
+    - ports:
+        - port: 8080
+          protocol: TCP
+        - port: 8081
+          protocol: TCP
+  egressRules:
+    # DNS egress (required for name resolution)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow connections to PostgreSQL in the same namespace
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: database
+      ports:
+        - port: 5432
+          protocol: TCP
+    # HTTP/HTTPS egress (for GitHub and Azure DevOps APIs)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+
+# Prometheus ServiceMonitor
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+
+# Migration namespace configuration
+migrationNamespace:
+  # Create a separate namespace for migration resources
+  create: true
+  name: "ado-git-migration"
+
+# CRD installation
+crds:
+  # Install CRDs as part of the Helm chart
+  install: true
+  # Keep CRDs when the chart is uninstalled
+  keepOnUninstall: true
+
+# Persistent storage for repository cloning and migration operations
+persistence:
+  # Enable persistent storage for migration workspace
+  enabled: true
+  # Storage class for the PVC (use Premium_LRS for Standard SSD in Azure)
+  storageClassName: "managed-premium"
+  # Access modes for the PVC
+  # NOTE: ReadWriteOnce (RWO) means the volume can only be mounted by one pod at a time
+  # The deployment uses "Recreate" strategy to avoid multi-attach issues during updates
+  # For multi-pod scenarios, use ReadWriteMany (RWX) if your storage class supports it
+  accessModes:
+    - ReadWriteOnce
+  # Storage size (250GB for handling large repositories)
+  size: "250Gi"
+  # Mount path inside the container
+  mountPath: "/workspace/migrations"
+  # Annotations for the PVC
+  annotations: {}
+  # Selector for PV (optional)
+  selector: {}
+
+# Migration cache configuration
+migrationCache:
+  # Enable in-memory cache for migration tracking
+  enabled: true
+  # Retention period in hours (48 hours after completion)
+  retentionHours: 48
+  # Maximum cache entries
+  maxEntries: 1000
+  # Cleanup interval in minutes
+  cleanupIntervalMinutes: 30
+# PostgreSQL database for migration tracking
+postgresql:
+  # Disable embedded PostgreSQL — use GKE shared instance
+  enabled: false
+  # Database configuration
+  database: "reposhift_db"
+  user: "reposhift_user"
+  # Connection to GKE shared PostgreSQL
+  connection:
+    host: "10.117.240.3"
+    port: 5432
+    sslmode: "require"
+    maxConnections: 100
+    connectionTimeout: 30

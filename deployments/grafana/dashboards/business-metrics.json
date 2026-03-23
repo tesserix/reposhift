@@ -1,0 +1,493 @@
+{
+  "dashboard": {
+    "title": "ADO to GitHub Migration - Business Metrics",
+    "description": "Business impact metrics: users, teams, projects, cost estimates",
+    "tags": ["ado-github-migration", "business"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "5m",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Total Users Impacted",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(ado_github_migration_users_impacted_total)",
+            "legendFormat": "Users",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "blue", "value": null},
+                {"color": "green", "value": 100},
+                {"color": "yellow", "value": 500},
+                {"color": "orange", "value": 1000}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Total Teams Impacted",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(ado_github_migration_teams_impacted_total)",
+            "legendFormat": "Teams",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "purple", "value": null},
+                {"color": "green", "value": 10},
+                {"color": "yellow", "value": 50},
+                {"color": "orange", "value": 100}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Total Projects Migrated",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(ado_github_migration_projects_migrated_total)",
+            "legendFormat": "Projects",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 10},
+                {"color": "orange", "value": 50}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Users Impacted by Organization",
+        "type": "bargauge",
+        "gridPos": {"h": 10, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "topk(10, sum by (organization) (ado_github_migration_users_impacted_total))",
+            "legendFormat": "{{organization}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "gradient",
+          "showUnfilled": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "continuous-BlPu"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "blue", "value": null},
+                {"color": "green", "value": 50},
+                {"color": "yellow", "value": 100},
+                {"color": "red", "value": 500}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Teams Impacted by Organization",
+        "type": "bargauge",
+        "gridPos": {"h": 10, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "topk(10, sum by (organization) (ado_github_migration_teams_impacted_total))",
+            "legendFormat": "{{organization}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "gradient",
+          "showUnfilled": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "continuous-GrYlRd"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 5},
+                {"color": "red", "value": 20}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Migration Activity Timeline",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 18},
+        "targets": [
+          {
+            "expr": "sum(rate(ado_github_migration_users_impacted_total[1h])) * 3600",
+            "legendFormat": "Users Impacted/Hour",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(ado_github_migration_teams_impacted_total[1h])) * 3600",
+            "legendFormat": "Teams Impacted/Hour",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(rate(ado_github_migration_projects_migrated_total[1h])) * 3600",
+            "legendFormat": "Projects Migrated/Hour",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "fillOpacity": 20,
+              "lineInterpolation": "smooth",
+              "lineWidth": 2
+            },
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Estimated Migration Cost",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 26},
+        "targets": [
+          {
+            "expr": "sum(ado_github_migration_migration_cost_estimate_total)",
+            "legendFormat": "Total Cost",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "decimals": 2,
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 10000},
+                {"color": "orange", "value": 50000},
+                {"color": "red", "value": 100000}
+              ]
+            }
+          }
+        },
+        "description": "Estimated cost based on API usage and compute time"
+      },
+      {
+        "id": 8,
+        "title": "Cost by Organization",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 26},
+        "targets": [
+          {
+            "expr": "topk(10, sum by (organization) (ado_github_migration_migration_cost_estimate_total))",
+            "legendFormat": "{{organization}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "values": ["value", "percent"]
+          },
+          "pieType": "donut"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "decimals": 2,
+            "color": {"mode": "palette-classic"}
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Cost Trend",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 26},
+        "targets": [
+          {
+            "expr": "sum(rate(ado_github_migration_migration_cost_estimate_total[1h])) * 3600 * 24",
+            "legendFormat": "Estimated Cost/Day",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "fillOpacity": 20,
+              "lineInterpolation": "smooth",
+              "lineWidth": 2
+            },
+            "unit": "currencyUSD",
+            "decimals": 2
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Organization Migration Progress",
+        "type": "table",
+        "gridPos": {"h": 12, "w": 24, "x": 0, "y": 34},
+        "targets": [
+          {
+            "expr": "sum by (organization) (ado_github_migration_users_impacted_total)",
+            "legendFormat": "",
+            "refId": "A",
+            "format": "table",
+            "instant": true
+          },
+          {
+            "expr": "sum by (organization) (ado_github_migration_teams_impacted_total)",
+            "legendFormat": "",
+            "refId": "B",
+            "format": "table",
+            "instant": true
+          },
+          {
+            "expr": "sum by (organization) (ado_github_migration_projects_migrated_total)",
+            "legendFormat": "",
+            "refId": "C",
+            "format": "table",
+            "instant": true
+          },
+          {
+            "expr": "sum by (organization) (ado_github_migration_repositories_migrated_total)",
+            "legendFormat": "",
+            "refId": "D",
+            "format": "table",
+            "instant": true
+          },
+          {
+            "expr": "sum by (organization) (ado_github_migration_work_items_migrated_total)",
+            "legendFormat": "",
+            "refId": "E",
+            "format": "table",
+            "instant": true
+          },
+          {
+            "expr": "sum by (organization) (ado_github_migration_migration_cost_estimate_total)",
+            "legendFormat": "",
+            "refId": "F",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "options": {
+          "showHeader": true,
+          "sortBy": [
+            {
+              "displayName": "Users",
+              "desc": true
+            }
+          ]
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Users"},
+              "properties": [
+                {
+                  "id": "custom.displayMode",
+                  "value": "color-background"
+                },
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "continuous-BlPu"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Cost"},
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "currencyUSD"
+                },
+                {
+                  "id": "decimals",
+                  "value": 2
+                },
+                {
+                  "id": "custom.displayMode",
+                  "value": "color-background"
+                },
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "continuous-GrYlRd"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "transformations": [
+          {
+            "id": "seriesToColumns",
+            "options": {
+              "byField": "organization"
+            }
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true
+              },
+              "renameByName": {
+                "organization": "Organization",
+                "Value #A": "Users",
+                "Value #B": "Teams",
+                "Value #C": "Projects",
+                "Value #D": "Repositories",
+                "Value #E": "Work Items",
+                "Value #F": "Cost"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Cumulative Impact Over Time",
+        "type": "timeseries",
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 46},
+        "targets": [
+          {
+            "expr": "sum(ado_github_migration_users_impacted_total)",
+            "legendFormat": "Total Users",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(ado_github_migration_teams_impacted_total)",
+            "legendFormat": "Total Teams",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(ado_github_migration_projects_migrated_total)",
+            "legendFormat": "Total Projects",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "fillOpacity": 0,
+              "lineInterpolation": "smooth",
+              "lineWidth": 3
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Total Users"},
+              "properties": [
+                {
+                  "id": "custom.axisPlacement",
+                  "value": "left"
+                }
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Total Teams"},
+              "properties": [
+                {
+                  "id": "custom.axisPlacement",
+                  "value": "right"
+                }
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Total Projects"},
+              "properties": [
+                {
+                  "id": "custom.axisPlacement",
+                  "value": "right"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

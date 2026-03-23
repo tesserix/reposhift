@@ -1,0 +1,149 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ado-git-migration.fullname" . }}-postgresql-init
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "ado-git-migration.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+data:
+  01-init-schema.sql: |
+    -- Migration tracking database schema
+    -- This schema tracks work item migrations to prevent duplicates and enable resume
+
+    -- Create extension for UUID generation
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+    -- Table to track GitHub Projects (one per GitHubProject CR)
+    CREATE TABLE IF NOT EXISTS github_projects (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        project_cr_name VARCHAR(255) NOT NULL,  -- GitHubProject CR name
+        project_cr_namespace VARCHAR(255) NOT NULL,
+        github_project_id VARCHAR(255) NOT NULL,  -- GitHub node ID (e.g., PVT_kwDOABC123)
+        github_project_number INTEGER NOT NULL,  -- GitHub project number
+        github_project_url TEXT NOT NULL,  -- Full URL to the project
+        owner VARCHAR(255) NOT NULL,  -- GitHub org or user
+        project_name VARCHAR(255) NOT NULL,  -- Project display name
+        template VARCHAR(100),  -- Project template used
+        public BOOLEAN DEFAULT true,
+        repository VARCHAR(255),  -- Optional linked repository (owner/repo)
+        status VARCHAR(50) NOT NULL DEFAULT 'ready',  -- ready, failed
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        last_updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        error_message TEXT,
+        CONSTRAINT unique_github_project UNIQUE (project_cr_name, project_cr_namespace),
+        CONSTRAINT unique_github_project_id UNIQUE (github_project_id)
+    );
+
+    -- Table to track unique migrations (one per WorkItemMigration CR)
+    CREATE TABLE IF NOT EXISTS migrations (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        migration_name VARCHAR(255) NOT NULL UNIQUE,  -- WorkItemMigration CR name
+        migration_namespace VARCHAR(255) NOT NULL,
+        source_organization VARCHAR(255) NOT NULL,
+        source_project VARCHAR(255) NOT NULL,
+        source_team VARCHAR(255),
+        target_owner VARCHAR(255) NOT NULL,
+        target_repository VARCHAR(255) NOT NULL,
+        github_project_id UUID REFERENCES github_projects(id) ON DELETE SET NULL,  -- Link to GitHub Project
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',  -- pending, running, completed, failed
+        total_items INTEGER DEFAULT 0,
+        migrated_items INTEGER DEFAULT 0,
+        failed_items INTEGER DEFAULT 0,
+        skipped_items INTEGER DEFAULT 0,
+        started_at TIMESTAMP WITH TIME ZONE,
+        completed_at TIMESTAMP WITH TIME ZONE,
+        last_updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        error_message TEXT,
+        CONSTRAINT unique_migration UNIQUE (migration_name, migration_namespace)
+    );
+
+    -- Table to track individual work item migrations
+    CREATE TABLE IF NOT EXISTS work_item_migrations (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        migration_id UUID NOT NULL REFERENCES migrations(id) ON DELETE CASCADE,
+        ado_work_item_id INTEGER NOT NULL,
+        ado_work_item_type VARCHAR(100),
+        ado_work_item_title TEXT,
+        ado_work_item_state VARCHAR(100),
+        github_issue_number INTEGER,
+        github_issue_url TEXT,
+        github_issue_node_id VARCHAR(255),  -- GitHub issue node ID for GraphQL operations
+        github_project_item_id VARCHAR(255),  -- Project item ID when added to project
+        added_to_project_at TIMESTAMP WITH TIME ZONE,  -- When issue was added to project
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',  -- pending, success, failed, skipped
+        migrated_at TIMESTAMP WITH TIME ZONE,
+        error_message TEXT,
+        retry_count INTEGER DEFAULT 0,
+        last_retry_at TIMESTAMP WITH TIME ZONE,
+        CONSTRAINT unique_work_item_per_migration UNIQUE (migration_id, ado_work_item_id)
+    );
+
+    -- Index for fast lookups
+    CREATE INDEX IF NOT EXISTS idx_github_projects_cr_name ON github_projects(project_cr_name, project_cr_namespace);
+    CREATE INDEX IF NOT EXISTS idx_github_projects_github_id ON github_projects(github_project_id);
+    CREATE INDEX IF NOT EXISTS idx_github_projects_owner ON github_projects(owner);
+    CREATE INDEX IF NOT EXISTS idx_migrations_name ON migrations(migration_name, migration_namespace);
+    CREATE INDEX IF NOT EXISTS idx_migrations_status ON migrations(status);
+    CREATE INDEX IF NOT EXISTS idx_migrations_github_project ON migrations(github_project_id);
+    CREATE INDEX IF NOT EXISTS idx_work_item_migrations_migration_id ON work_item_migrations(migration_id);
+    CREATE INDEX IF NOT EXISTS idx_work_item_migrations_ado_id ON work_item_migrations(ado_work_item_id);
+    CREATE INDEX IF NOT EXISTS idx_work_item_migrations_status ON work_item_migrations(status);
+    CREATE INDEX IF NOT EXISTS idx_work_item_migrations_github_issue ON work_item_migrations(github_issue_number);
+    CREATE INDEX IF NOT EXISTS idx_work_item_migrations_project_item ON work_item_migrations(github_project_item_id);
+
+    -- Table to track rate limit incidents
+    CREATE TABLE IF NOT EXISTS rate_limit_events (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        migration_id UUID NOT NULL REFERENCES migrations(id) ON DELETE CASCADE,
+        service VARCHAR(50) NOT NULL,  -- 'github' or 'ado'
+        rate_limit_type VARCHAR(50),  -- 'primary' or 'secondary'
+        reset_at TIMESTAMP WITH TIME ZONE,
+        occurred_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        retry_after_seconds INTEGER
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_rate_limit_events_migration_id ON rate_limit_events(migration_id);
+    CREATE INDEX IF NOT EXISTS idx_rate_limit_events_occurred_at ON rate_limit_events(occurred_at);
+
+    -- View for migration progress summary with GitHub Project info
+    CREATE OR REPLACE VIEW migration_progress AS
+    SELECT
+        m.id,
+        m.migration_name,
+        m.migration_namespace,
+        m.source_organization,
+        m.source_project,
+        m.target_repository,
+        m.status,
+        m.total_items,
+        m.migrated_items,
+        m.failed_items,
+        m.skipped_items,
+        CASE
+            WHEN m.total_items > 0
+            THEN ROUND((m.migrated_items::NUMERIC / m.total_items::NUMERIC) * 100, 2)
+            ELSE 0
+        END as progress_percentage,
+        COUNT(CASE WHEN wim.status = 'pending' THEN 1 END) as pending_items,
+        COUNT(CASE WHEN wim.github_project_item_id IS NOT NULL THEN 1 END) as items_in_project,
+        gp.github_project_id,
+        gp.github_project_number,
+        gp.github_project_url,
+        gp.project_name as github_project_name,
+        m.started_at,
+        m.completed_at,
+        EXTRACT(EPOCH FROM (COALESCE(m.completed_at, NOW()) - m.started_at)) as duration_seconds
+    FROM migrations m
+    LEFT JOIN work_item_migrations wim ON m.id = wim.migration_id
+    LEFT JOIN github_projects gp ON m.github_project_id = gp.id
+    GROUP BY m.id, m.migration_name, m.migration_namespace, m.source_organization,
+             m.source_project, m.target_repository, m.status, m.total_items,
+             m.migrated_items, m.failed_items, m.skipped_items, m.started_at, m.completed_at,
+             gp.github_project_id, gp.github_project_number, gp.github_project_url, gp.project_name;
+
+    -- Grant permissions (for passwordless auth, all users have full access)
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO PUBLIC;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO PUBLIC;
+{{- end }}

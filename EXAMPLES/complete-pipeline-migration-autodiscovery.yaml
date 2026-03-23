@@ -1,0 +1,259 @@
+# ==============================================================================
+# COMPLETE PIPELINE MIGRATION EXAMPLE - Ready to Test
+# ==============================================================================
+# This example demonstrates auto-discovery of all pipelines from Azure DevOps
+# and conversion to GitHub Actions workflows.
+#
+# USES EXISTING SECRETS - No secret definitions included
+# ==============================================================================
+
+apiVersion: migration.ado-to-git-migration.io/v1
+kind: PipelineToWorkflow
+metadata:
+  name: complete-ado-pipeline-migration
+  namespace: ado-migration-operator
+  labels:
+    migration-type: "pipeline"
+    auto-discovery: "true"
+
+spec:
+  # ==============================================================================
+  # SOURCE: Azure DevOps Configuration
+  # ==============================================================================
+  source:
+    # Azure DevOps organization (pre-configured from Authority migration)
+    organization: civica-international-lg
+
+    # Azure DevOps project (pre-configured from Authority migration)
+    project: Authority
+
+    apiUrl: https://dev.azure.com
+
+    # Uses existing azure-ado-pat secret (same as Authority migration)
+    auth:
+      pat:
+        tokenRef:
+          name: azure-ado-pat       # Existing secret in cluster
+          key: token
+          namespace: ado-migration-operator
+
+  # ==============================================================================
+  # TARGET: GitHub Configuration
+  # ==============================================================================
+  target:
+    # GitHub organization (pre-configured from Authority migration)
+    owner: civica
+
+    # Main application repository (reference repository from Authority migration)
+    repository: product-lg-authority-java-authority
+
+    apiUrl: https://api.github.com
+
+    # Uses existing github-app-secret from Helm installation
+    auth:
+      appAuth:
+        appIdRef:
+          name: github-app-secret  # Existing secret in cluster
+          key: app-id
+        installationIdRef:
+          name: github-app-secret  # Existing secret in cluster
+          key: installation-id
+        privateKeyRef:
+          name: github-app-secret  # Existing secret in cluster
+          key: private-key
+
+    # Workflows repository configuration
+    workflowsRepository:
+      create: true
+      name: ado-to-git-migration-workflows
+      description: "Converted GitHub Actions workflows from Azure DevOps pipelines"
+      private: true
+      initializeWithReadme: true
+
+    # Default workflow settings
+    defaultWorkflowSettings:
+      triggers:
+        - type: push
+          config:
+            branches: ["main", "develop"]
+        - type: pull_request
+          config:
+            branches: ["main"]
+        - type: workflow_dispatch
+
+      runnerLabels: ["ubuntu-latest"]
+      timeoutMinutes: 60
+
+      environmentVariables:
+        BUILD_CONFIGURATION: "Release"
+        DOTNET_VERSION: "8.0.x"
+        NODE_VERSION: "20.x"
+
+  # ==============================================================================
+  # AUTO-DISCOVERY CONFIGURATION
+  # ==============================================================================
+  autoDiscovery:
+    enabled: true
+    includeBuildPipelines: true
+    includeReleasePipelines: true
+    maxPipelines: 5                     # Limit to first 5 pipelines for safe testing
+
+    # Optional: Uncomment to filter pipelines
+    # folderFilter: "/Production/*"        # Only pipelines in Production folder
+    # nameFilter: "^(CI|CD)-.*"           # Only pipelines starting with CI- or CD-
+
+  # ==============================================================================
+  # CONVERSION TYPE
+  # ==============================================================================
+  type: all  # Convert both build and release pipelines
+
+  # ==============================================================================
+  # CONVERSION SETTINGS
+  # ==============================================================================
+  settings:
+    convertVariables: true
+    convertVariableGroups: true
+    convertServiceConnections: true
+    convertArtifacts: true
+    convertApprovals: true
+    preserveComments: true
+    generateMatrix: true
+    useCompositeActions: false
+    parallelJobs: 5
+    retryAttempts: 3
+
+    # Optional: Custom task mappings
+    taskMappings:
+      "NuGetCommand@2":
+        action: "actions/setup-dotnet@v4"
+        version: "v4"
+        inputMappings:
+          command: "dotnet-command"
+      "NodeTool@0":
+        action: "actions/setup-node@v4"
+        version: "v4"
+        inputMappings:
+          versionSpec: "node-version"
+
+  # ==============================================================================
+  # VALIDATION RULES
+  # ==============================================================================
+  validationRules:
+    skipValidation: false
+    validateSyntax: true
+    validateActionsExist: true
+    validateSecretsExist: false  # Don't fail if secrets don't exist yet
+    requiredGitHubFeatures:
+      - "actions"
+      - "environments"
+
+# ==============================================================================
+# HOW TO USE THIS EXAMPLE
+# ==============================================================================
+#
+# STEP 1: Verify secrets exist in your cluster
+#   kubectl get secrets -n ado-migration-operator
+#
+#   Expected secrets:
+#   - azure-ado-pat (token)
+#   - github-app-secret (app-id, installation-id, private-key)
+#
+# STEP 2: Values are pre-configured from Authority migration:
+#   - Azure DevOps: civica-international-lg/Authority
+#   - GitHub: civica/product-lg-authority-java-authority
+#   - Authentication: Uses existing secrets (azure-ado-pat, github-app-secret)
+#
+#   ✅ NO EDITING REQUIRED - Ready to apply as-is!
+#
+# STEP 3: Apply the migration
+#   kubectl apply -f complete-pipeline-migration-autodiscovery.yaml
+#
+# STEP 4: Watch progress
+#   kubectl get pipelinetoworkflow complete-ado-pipeline-migration -n ado-migration-operator -w
+#
+# STEP 5: Check detailed status
+#   kubectl describe pipelinetoworkflow complete-ado-pipeline-migration -n ado-migration-operator
+#
+# STEP 6: View operator logs
+#   kubectl logs -n ado-migration-operator deployment/ado-to-git-migration-operator -f
+#
+# STEP 7: Check GitHub workflows repository (after completion)
+#   https://github.com/YOUR-ORG/ado-to-git-migration-workflows
+#
+# ==============================================================================
+# WHAT YOU'LL GET
+# ==============================================================================
+#
+# After migration completes, you'll have a new GitHub repository:
+#
+# ado-to-git-migration-workflows/
+# ├── README.md                    # Comprehensive migration guide
+# ├── MIGRATION_SUMMARY.md         # Auto-generated summary
+# ├── pipelines/
+# │   ├── README.md                # Build pipelines guide
+# │   ├── ci-build.yml             # Converted build pipeline 1
+# │   ├── unit-tests.yml           # Converted build pipeline 2
+# │   └── ...                      # More build pipelines
+# └── releases/
+#     ├── README.md                # Release pipelines guide
+#     ├── deploy-staging.yml       # Converted release pipeline 1
+#     ├── deploy-production.yml    # Converted release pipeline 2
+#     └── ...                      # More release pipelines
+#
+# ==============================================================================
+# STARTING SMALL (RECOMMENDED)
+# ==============================================================================
+#
+# For your first migration, uncomment this to limit to 5 pipelines:
+#
+# autoDiscovery:
+#   enabled: true
+#   includeBuildPipelines: true
+#   includeReleasePipelines: true
+#   maxPipelines: 5  # Start with just 5 pipelines
+#
+# ==============================================================================
+# CLEANUP
+# ==============================================================================
+#
+# To delete the migration claim:
+#   kubectl delete pipelinetoworkflow complete-ado-pipeline-migration -n ado-migration-operator
+#
+# To delete the workflows repository (if needed):
+#   gh repo delete YOUR-ORG/ado-to-git-migration-workflows --yes
+#
+# ==============================================================================
+# TROUBLESHOOTING
+# ==============================================================================
+#
+# If migration fails, check:
+#
+# 1. Secrets exist and are correct:
+#    kubectl get secret azure-ado-pat -n ado-migration-operator -o yaml
+#    kubectl get secret github-app-secret -n ado-migration-operator -o yaml
+#
+# 2. Operator is running:
+#    kubectl get pods -n ado-migration-operator
+#
+# 3. Check operator logs for errors:
+#    kubectl logs -n ado-migration-operator deployment/ado-to-git-migration-operator
+#
+# 4. Check migration status:
+#    kubectl describe pipelinetoworkflow complete-ado-pipeline-migration -n ado-migration-operator
+#
+# 5. Check events:
+#    kubectl get events -n ado-migration-operator --sort-by='.lastTimestamp'
+#
+# ==============================================================================
+# NOTES
+# ==============================================================================
+#
+# - NO SECRET DEFINITIONS: This example uses existing secrets from your cluster
+# - SECRET NAMES: azure-ado-pat and github-app-secret must exist
+# - PRE-CONFIGURED: Uses same values as Authority migration (ready to test)
+# - AUTO-DISCOVERY: Automatically finds all pipelines in Authority ADO project
+# - PRODUCTION-READY: Generated workflows include best practices
+# - SAFE TESTING: Limited to 5 pipelines initially (see maxPipelines config)
+# - ORGANIZED: Workflows are placed in pipelines/ and releases/ directories
+#
+# ==============================================================================

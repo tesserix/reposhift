@@ -1,0 +1,139 @@
+/* Custom styles for Swagger UI */
+.swagger-ui .topbar {
+  background-color: #1b1b1b;
+}
+
+.swagger-ui .topbar .download-url-wrapper .select-label {
+  color: white;
+}
+
+.swagger-ui .info .title {
+  font-size: 36px;
+  margin: 0;
+  color: #3b4151;
+}
+
+.swagger-ui .info .title small {
+  background-color: #7d8492;
+}
+
+.swagger-ui .info .title small.version-stamp {
+  background-color: #89bf04;
+}
+
+.swagger-ui .info .title small pre {
+  font-family: sans-serif;
+}
+
+.swagger-ui .opblock.opblock-get {
+  border-color: #61affe;
+  background: rgba(97, 175, 254, 0.1);
+}
+
+.swagger-ui .opblock.opblock-post {
+  border-color: #49cc90;
+  background: rgba(73, 204, 144, 0.1);
+}
+
+.swagger-ui .opblock.opblock-put {
+  border-color: #fca130;
+  background: rgba(252, 161, 48, 0.1);
+}
+
+.swagger-ui .opblock.opblock-delete {
+  border-color: #f93e3e;
+  background: rgba(249, 62, 62, 0.1);
+}
+
+.swagger-ui .opblock.opblock-patch {
+  border-color: #50e3c2;
+  background: rgba(80, 227, 194, 0.1);
+}
+
+.swagger-ui .opblock.opblock-options {
+  border-color: #0d5aa7;
+  background: rgba(13, 90, 167, 0.1);
+}
+
+.swagger-ui .opblock.opblock-deprecated {
+  opacity: 0.6;
+  border-color: #ebebeb;
+  background: rgba(235, 235, 235, 0.1);
+}
+
+.swagger-ui .opblock-summary-method {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.swagger-ui .opblock-summary-path {
+  font-family: monospace;
+  font-weight: 600;
+}
+
+.swagger-ui .opblock-summary-description {
+  font-size: 13px;
+  color: #3b4151;
+}
+
+.swagger-ui .parameters-container {
+  margin-bottom: 20px;
+}
+
+.swagger-ui .parameter__name {
+  font-weight: 600;
+}
+
+.swagger-ui .parameter__required {
+  color: #f93e3e;
+}
+
+.swagger-ui .response-col_status {
+  font-weight: 600;
+}
+
+.swagger-ui .response-col_description {
+  font-size: 13px;
+  color: #3b4151;
+}
+
+.swagger-ui .response-col_links {
+  font-size: 13px;
+  color: #3b4151;
+}
+
+.swagger-ui .model-box {
+  background-color: #f7f7f7;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.swagger-ui .model-title {
+  font-weight: 600;
+}
+
+.swagger-ui .model {
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.swagger-ui .model-toggle {
+  cursor: pointer;
+}
+
+.swagger-ui .model-toggle:after {
+  content: '';
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 5px 5px 0 5px;
+  border-color: #41444e transparent transparent transparent;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+.swagger-ui .model-toggle.collapsed:after {
+  border-width: 5px 0 5px 5px;
+  border-color: transparent transparent transparent #41444e;
+}

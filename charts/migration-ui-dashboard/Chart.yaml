@@ -1,0 +1,16 @@
+apiVersion: v2
+name: migration-ui-dashboard
+description: UI Dashboard for ADO to Git Migration Operator
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - migration
+  - dashboard
+  - ui
+  - azure-devops
+  - github
+home: https://github.com/your-org/migration-operator
+maintainers:
+  - name: Platform Team
+    email: platform-team@your-org.com

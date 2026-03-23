@@ -1,0 +1,55 @@
+# Development environment overrides
+# Use with: helm install -f values.yaml -f values-dev.yaml
+
+image:
+  repository: acrbismuthdevtest.azurecr.io/platform/idp/backend/ado-git-migration
+  pullPolicy: Always
+  tag: latest
+  # Tag will be set by CI/CD pipeline or manually
+
+# Image pull secrets for ACR (create this secret in your namespace)
+imagePullSecrets:
+  - name: acr-dev-secret
+
+# Operator configuration for dev
+operator:
+  logLevel: "debug"
+  enableMetrics: true
+  enableLeaderElection: false
+  enableWebhooks: false
+  # Batch delay for testing (2 minutes instead of 30)
+  batchDelayMinutes: 2
+
+# Resource limits for dev
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Autoscaling disabled for dev
+autoscaling:
+  enabled: false
+
+# NetworkPolicy disabled (inherits from values.yaml) to ensure PostgreSQL connectivity works
+
+# Migration namespace (use same namespace as operator)
+migrationNamespace:
+  create: false
+  name: ado-migration-operator
+
+# CRDs (already exist, skip installation)
+crds:
+  install: false
+
+# Auth secrets - set via CI/CD or manually
+auth:
+  createSecrets: false
+  azure:
+    clientId: ""
+    clientSecret: ""
+    tenantId: ""
+  github:
+    token: ""

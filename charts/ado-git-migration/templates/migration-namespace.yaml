@@ -1,0 +1,10 @@
+{{- if .Values.migrationNamespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.migrationNamespace.name }}
+  labels:
+    app.kubernetes.io/name: {{ include "ado-git-migration.name" . }}-resources
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}

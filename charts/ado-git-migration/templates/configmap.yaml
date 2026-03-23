@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ado-git-migration.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ado-git-migration.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    apiServer:
+      # Rate limiting settings
+      rateLimits:
+        perClient: {{ .Values.operator.rateLimits.perClient }}
+        global: {{ .Values.operator.rateLimits.global }}
+      
+      # CORS settings
+      cors:
+        allowedOrigins:
+          - "*"
+        allowedMethods:
+          - "GET"
+          - "POST"
+          - "PUT"
+          - "DELETE"
+          - "OPTIONS"
+        allowedHeaders:
+          - "Content-Type"
+          - "Authorization"
+          - "X-Requested-With"
+      
+      # Security settings
+      security:
+        enableTLS: {{ .Values.operator.enableWebhooks }}
+        tlsCertFile: "/certs/tls.crt"
+        tlsKeyFile: "/certs/tls.key"
+    
+    # Migration settings
+    migration:
+      defaultSettings:
+        maxHistoryDays: {{ .Values.operator.defaultSettings.maxHistoryDays }}
+        maxCommitCount: {{ .Values.operator.defaultSettings.maxCommitCount }}
+        batchSize: {{ .Values.operator.defaultSettings.batchSize }}
+        retryAttempts: {{ .Values.operator.defaultSettings.retryAttempts }}
+        parallelWorkers: {{ .Values.operator.defaultSettings.parallelWorkers }}
+      
+      # Rate limiting for external APIs
+      rateLimits:
+        azureDevOps: {{ .Values.operator.rateLimits.azureDevOps }}
+        github: {{ .Values.operator.rateLimits.github }}

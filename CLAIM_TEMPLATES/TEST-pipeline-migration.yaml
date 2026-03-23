@@ -1,0 +1,189 @@
+# ==============================================================================
+# TEST PIPELINE MIGRATION - Ready to Use
+# ==============================================================================
+# This is a ready-to-use test claim for pipeline migration.
+# It uses existing secrets and is configured to migrate a small number of
+# pipelines for testing purposes.
+#
+# BEFORE APPLYING:
+# 1. Replace YOUR-* placeholders with your actual values
+# 2. Verify secrets exist: kubectl get secrets -n ado-migration-operator
+# 3. Optionally adjust maxPipelines to control how many pipelines to test
+# ==============================================================================
+
+apiVersion: migration.ado-to-git-migration.io/v1
+kind: PipelineToWorkflow
+metadata:
+  name: test-pipeline-migration
+  namespace: ado-migration-operator
+  labels:
+    test: "true"
+    migration-type: "pipeline"
+
+spec:
+  # ==============================================================================
+  # AZURE DEVOPS SOURCE
+  # ==============================================================================
+  source:
+    # Replace with your ADO organization name
+    organization: YOUR-ORG-NAME-HERE
+
+    # Replace with your ADO project name
+    project: YOUR-PROJECT-NAME-HERE
+
+    apiUrl: https://dev.azure.com
+
+    # Uses existing secret created by Helm
+    auth:
+      servicePrincipal:
+        clientIdRef:
+          name: azure-sp-secret    # Existing secret
+          key: client-id
+        clientSecretRef:
+          name: azure-sp-secret    # Existing secret
+          key: client-secret
+        tenantIdRef:
+          name: azure-sp-secret    # Existing secret
+          key: tenant-id
+
+  # ==============================================================================
+  # GITHUB TARGET
+  # ==============================================================================
+  target:
+    # Replace with your GitHub organization or username
+    owner: YOUR-GITHUB-ORG-HERE
+
+    # Replace with a repository name (can be any existing repo as reference)
+    repository: test-repo
+
+    apiUrl: https://api.github.com
+
+    # Uses existing GitHub App secret created by Helm
+    auth:
+      appAuth:
+        appIdRef:
+          name: github-app-secret  # Existing secret
+          key: app-id
+        installationIdRef:
+          name: github-app-secret  # Existing secret
+          key: installation-id
+        privateKeyRef:
+          name: github-app-secret  # Existing secret
+          key: private-key
+
+    # Workflows repository configuration
+    workflowsRepository:
+      create: true
+      name: ado-to-git-migration-workflows-test  # Test repository name
+      description: "TEST: Converted workflows from ADO pipelines"
+      private: true
+      initializeWithReadme: true
+
+    # Default workflow settings
+    defaultWorkflowSettings:
+      triggers:
+        - type: push
+          config:
+            branches: ["main", "develop"]
+        - type: pull_request
+          config:
+            branches: ["main"]
+        - type: workflow_dispatch
+
+      runnerLabels: ["ubuntu-latest"]
+      timeoutMinutes: 60
+
+      environmentVariables:
+        BUILD_CONFIGURATION: "Release"
+        DOTNET_VERSION: "8.0.x"
+        NODE_VERSION: "20.x"
+
+  # ==============================================================================
+  # AUTO-DISCOVERY (LIMITED FOR TESTING)
+  # ==============================================================================
+  autoDiscovery:
+    enabled: true
+    includeBuildPipelines: true
+    includeReleasePipelines: true
+
+    # IMPORTANT: Limit to 5 pipelines for initial testing
+    maxPipelines: 5
+
+    # Optional: Uncomment to filter by folder or name
+    # folderFilter: "/Production/*"
+    # nameFilter: "^CI-.*"
+
+  # ==============================================================================
+  # CONVERSION SETTINGS
+  # ==============================================================================
+  type: all  # Convert both build and release pipelines
+
+  settings:
+    convertVariables: true
+    convertVariableGroups: true
+    convertServiceConnections: true
+    convertArtifacts: true
+    convertApprovals: true
+    preserveComments: true
+    generateMatrix: true
+    useCompositeActions: false
+    parallelJobs: 3     # Lower for testing
+    retryAttempts: 2    # Lower for testing
+
+  # ==============================================================================
+  # VALIDATION RULES
+  # ==============================================================================
+  validationRules:
+    skipValidation: false
+    validateSyntax: true
+    validateActionsExist: true
+    validateSecretsExist: false  # Don't validate secrets during conversion
+    requiredGitHubFeatures:
+      - "actions"
+      - "environments"
+
+# ==============================================================================
+# HOW TO USE THIS TEST
+# ==============================================================================
+#
+# 1. VERIFY SECRETS EXIST
+#    kubectl get secrets -n ado-migration-operator
+#    Expected: azure-sp-secret, github-app-secret
+#
+# 2. REPLACE PLACEHOLDERS
+#    - YOUR-ORG-NAME-HERE → Your Azure DevOps organization
+#    - YOUR-PROJECT-NAME-HERE → Your Azure DevOps project
+#    - YOUR-GITHUB-ORG-HERE → Your GitHub organization
+#
+# 3. APPLY THE CLAIM
+#    kubectl apply -f TEST-pipeline-migration.yaml
+#
+# 4. WATCH PROGRESS
+#    kubectl get pipelinetoworkflow test-pipeline-migration -n ado-migration-operator -w
+#
+# 5. CHECK STATUS
+#    kubectl describe pipelinetoworkflow test-pipeline-migration -n ado-migration-operator
+#
+# 6. VIEW LOGS
+#    kubectl logs -n ado-migration-operator deployment/ado-to-git-migration-operator -f
+#
+# 7. CHECK WORKFLOWS REPOSITORY (after completion)
+#    https://github.com/YOUR-GITHUB-ORG-HERE/ado-to-git-migration-workflows-test
+#
+# 8. VERIFY CONVERTED WORKFLOWS
+#    git clone https://github.com/YOUR-GITHUB-ORG-HERE/ado-to-git-migration-workflows-test.git
+#    cd ado-to-git-migration-workflows-test
+#    ls -la pipelines/
+#    ls -la releases/
+#
+# ==============================================================================
+# CLEANUP AFTER TESTING
+# ==============================================================================
+#
+# Delete the claim:
+# kubectl delete pipelinetoworkflow test-pipeline-migration -n ado-migration-operator
+#
+# Delete the test workflows repository (optional):
+# gh repo delete YOUR-GITHUB-ORG-HERE/ado-to-git-migration-workflows-test --yes
+#
+# ==============================================================================

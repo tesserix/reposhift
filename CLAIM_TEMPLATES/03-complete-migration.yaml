@@ -1,0 +1,297 @@
+# ==============================================================================
+# COMPLETE MIGRATION (EVERYTHING AT ONCE!)
+# ==============================================================================
+#
+# What this does:
+# - Migrates ALL repositories from ADO to GitHub (auto-discovery)
+# - Migrates ALL work items to GitHub Issues
+# - Creates GitHub Projects to organize work
+# - Links work items to their corresponding repos
+# - Does everything in parallel (super fast!)
+#
+# Use this when:
+# - You want to migrate an entire ADO project to GitHub
+# - You want repos, work items, and projects all moved together
+# - You want a complete one-shot migration
+#
+# ==============================================================================
+
+apiVersion: migration.ado-to-git-migration.io/v1
+kind: MigrationJob
+metadata:
+  # Name your complete migration
+  name: complete-ado-to-github
+  # Namespace
+  namespace: ado-git-migration
+
+spec:
+  # ==============================================================================
+  # AZURE DEVOPS CONFIGURATION
+  # ==============================================================================
+  azureDevOps:
+    # Your ADO organization name
+    organization: YOUR-ORG-NAME-HERE
+
+    # Your ADO project name (everything comes from here)
+    project: YOUR-PROJECT-NAME-HERE
+
+    # Authentication: Service Principal (recommended)
+    servicePrincipal:
+      clientId: "YOUR-CLIENT-ID-HERE"
+      clientSecretRef:
+        name: azure-sp-secret    # Standard secret name
+        key: client-secret
+      tenantId: "YOUR-TENANT-ID-HERE"
+
+  # ==============================================================================
+  # GITHUB CONFIGURATION
+  # ==============================================================================
+  github:
+    # Your GitHub organization (where everything will be created)
+    owner: YOUR-GITHUB-ORG-HERE
+
+    # Authentication: Choose ONE method below
+
+    # Method 1: Personal Access Token (simple, good for testing)
+    tokenRef:
+      name: github-token-secret   # Standard secret name
+      key: token
+
+    # Method 2: GitHub App (recommended for production, higher rate limits)
+    # Uncomment this block if using GitHub App:
+    # appAuth:
+    #   appId: "YOUR-APP-ID-HERE"
+    #   installationIdRef:
+    #     name: github-app-secret
+    #     key: installation-id
+    #   privateKeyRef:
+    #     name: github-app-secret
+    #     key: private-key
+
+  # ==============================================================================
+  # MIGRATION SETTINGS
+  # ==============================================================================
+  settings:
+    # Repository batch size (1 = each repo gets its own pod - fastest!)
+    batchSize: 1
+
+    # Work items batch size (how many work items per pod)
+    workItemsBatchSize: 10
+
+    # Git history settings
+    maxHistoryDays: 500      # Migrate last 500 days of history
+    maxCommitCount: 5000     # Up to 5000 commits per repo
+
+    # Retry settings
+    retryAttempts: 3         # Try 3 times if something fails
+
+    # Parallel workers (how many pods can run at once)
+    parallelWorkers: 50      # Up to 50 repos/batches at once
+
+  # ==============================================================================
+  # AUTO-DISCOVERY: REPOSITORIES
+  # ==============================================================================
+  discovery:
+    # Repository Discovery
+    repositories:
+      # Enable automatic repository discovery
+      enabled: true
+
+      # Find all repos in the project
+      mode: all
+
+      # Optional: Filter which repos to migrate
+      # includePatterns:
+      #   - "frontend-*"
+      #   - "backend-*"
+      # excludePatterns:
+      #   - "*-archived"
+      #   - "*-deprecated"
+
+      # Naming convention for GitHub repos
+      namingConvention:
+        strategy: template
+
+        # Template: Add your team/product name as prefix
+        # Example: "myteam-{{.SourceName}}"
+        #   ADO: "user-service" → GitHub: "myteam-user-service"
+        template: "myteam-{{.SourceName}}"
+
+        # Transform: Make all names lowercase
+        transform: lowercase
+
+    # ==============================================================================
+    # AUTO-DISCOVERY: WORK ITEMS
+    # ==============================================================================
+    workItems:
+      # Enable work items migration
+      enabled: true
+
+      # Which work item types to migrate
+      types:
+        - "User Story"
+        - "Bug"
+        - "Task"
+        - "Feature"
+
+      # Optional: Filter by area path (teams)
+      # areaPaths:
+      #   - "MyProject\\Development"
+      #   - "MyProject\\QA"
+
+      # Optional: Filter by state
+      # states:
+      #   - "Active"
+      #   - "New"
+      #   - "Resolved"
+
+      # Where to create GitHub Issues
+      targetRepository:
+        # Option A: Put all work items in ONE central repo
+        # owner: YOUR-GITHUB-ORG-HERE
+        # name: project-backlog
+
+        # Option B: Link work items to their source repos (RECOMMENDED!)
+        # If a work item is linked to ADO repo "user-service",
+        # create the issue in GitHub repo "myteam-user-service"
+        useSourceRepositoryMapping: true
+
+      # Work item mapping settings
+      mapping:
+        # Include ADO ID in GitHub issue title?
+        includeAdoIdInTitle: true
+
+        # Migrate descriptions, comments, attachments?
+        includeDescription: true
+        includeComments: true
+        includeAttachments: true
+
+        # Preserve links between work items?
+        preserveLinks: true
+
+        # Label mapping: ADO fields → GitHub labels
+        labels:
+          # Work Item Types
+          "User Story": "story"
+          "Bug": "bug"
+          "Task": "task"
+          "Feature": "feature"
+
+          # Priorities
+          "1": "priority:critical"
+          "2": "priority:high"
+          "3": "priority:medium"
+          "4": "priority:low"
+
+    # ==============================================================================
+    # AUTO-DISCOVERY: GITHUB PROJECTS (OPTIONAL)
+    # ==============================================================================
+    projects:
+      # Enable GitHub Projects creation
+      enabled: true
+
+      # Create projects based on ADO sprints/iterations
+      createFromIterations: true
+
+      # Optional: Or create a single project for all work
+      # singleProject:
+      #   name: "Team Backlog"
+      #   description: "Migrated from Azure DevOps"
+
+      # Project settings
+      template: "basic"           # Options: "basic", "kanban", "automated-kanban"
+      visibility: "private"       # Options: "private", "public"
+
+      # Column mapping: ADO states → GitHub project columns
+      columns:
+        "New": "To Do"
+        "Active": "In Progress"
+        "Resolved": "Done"
+        "Closed": "Done"
+
+# ==============================================================================
+# MIGRATION FLOW: WHAT HAPPENS?
+# ==============================================================================
+#
+# Step 1: REPOSITORIES (happens first)
+#   - Operator finds all repos in your ADO project
+#   - Creates one worker pod per repo
+#   - Each pod clones from ADO and pushes to GitHub
+#   - Result: All repos are in GitHub
+#
+# Step 2: WORK ITEMS (happens after repos are ready)
+#   - Operator finds all work items matching your filters
+#   - Creates worker pods (each handles ~10 work items)
+#   - Each pod creates GitHub issues with all content
+#   - Links issues to their corresponding repos
+#   - Result: All work items are GitHub issues
+#
+# Step 3: PROJECTS (happens after work items are ready)
+#   - Operator creates GitHub Projects
+#   - Adds all issues to appropriate projects
+#   - Sets up columns and automation
+#   - Result: Your work is organized in GitHub Projects
+#
+# Timeline:
+#   - 50 repos: ~1 hour
+#   - 500 work items: ~30 minutes
+#   - Projects: ~5 minutes
+#   - Total: ~1.5 hours for complete migration!
+#
+# ==============================================================================
+# HOW TO USE
+# ==============================================================================
+#
+# 1. Create secrets first:
+#
+#    kubectl create secret generic azure-sp-secret \
+#      --namespace=ado-git-migration \
+#      --from-literal=client-id="YOUR-CLIENT-ID" \
+#      --from-literal=client-secret="YOUR-CLIENT-SECRET" \
+#      --from-literal=tenant-id="YOUR-TENANT-ID"
+#
+#    kubectl create secret generic github-token-secret \
+#      --namespace=ado-git-migration \
+#      --from-literal=token="YOUR-GITHUB-TOKEN"
+#
+# 2. Update placeholders in this file:
+#    - Replace YOUR-ORG-NAME-HERE
+#    - Replace YOUR-PROJECT-NAME-HERE
+#    - Replace YOUR-GITHUB-ORG-HERE
+#    - Replace YOUR-CLIENT-ID-HERE
+#    - Replace YOUR-TENANT-ID-HERE
+#    - Update the naming template (myteam-{{.SourceName}})
+#
+# 3. Apply the migration:
+#
+#    kubectl apply -f 03-complete-migration.yaml
+#
+# 4. Watch progress:
+#
+#    kubectl get migrationjob complete-ado-to-github -n ado-git-migration -w
+#    kubectl get pods -n ado-git-migration
+#
+# 5. Check logs:
+#
+#    kubectl logs -l app=migration-worker -n ado-git-migration --tail=100
+#
+# ==============================================================================
+# TROUBLESHOOTING
+# ==============================================================================
+#
+# If a migration fails:
+# 1. Check the failed pod logs:
+#    kubectl get pods -n ado-git-migration | grep Error
+#    kubectl logs <failed-pod-name> -n ado-git-migration
+#
+# 2. Common issues:
+#    - Wrong credentials: Check your secrets
+#    - Rate limits: Wait a few minutes and retry
+#    - Repo already exists: Change naming template or delete GitHub repo
+#    - Network timeout: Increase timeout in settings
+#
+# 3. Retry a failed migration:
+#    kubectl delete migrationjob complete-ado-to-github -n ado-git-migration
+#    kubectl apply -f 03-complete-migration.yaml
+#
+# ==============================================================================

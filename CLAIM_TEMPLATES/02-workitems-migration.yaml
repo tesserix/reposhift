@@ -1,0 +1,192 @@
+# ==============================================================================
+# WORK ITEMS MIGRATION (ADO → GITHUB ISSUES)
+# ==============================================================================
+#
+# What this does:
+# - Migrates Azure DevOps Work Items to GitHub Issues
+# - Work Items include: User Stories, Tasks, Bugs, Features
+# - Preserves: Title, Description, Comments, Attachments, Links
+#
+# Use this when:
+# - You want to move your ADO work tracking to GitHub
+# - You want work items linked to your migrated repositories
+# - You need to migrate backlogs and sprint work
+#
+# ==============================================================================
+
+apiVersion: migration.ado-to-git-migration.io/v1
+kind: MigrationJob
+metadata:
+  # Give your migration a name
+  name: my-workitems-migration
+  # Namespace where migration runs
+  namespace: ado-git-migration
+
+spec:
+  # ==============================================================================
+  # AZURE DEVOPS CONFIGURATION
+  # ==============================================================================
+  azureDevOps:
+    # Your ADO organization (from URL: dev.azure.com/YOUR-ORG)
+    organization: YOUR-ORG-NAME-HERE
+
+    # Your ADO project (where work items are)
+    project: YOUR-PROJECT-NAME-HERE
+
+    # Authentication: Service Principal
+    servicePrincipal:
+      clientId: "YOUR-CLIENT-ID-HERE"
+      clientSecretRef:
+        name: azure-sp-secret    # Standard secret name
+        key: client-secret
+      tenantId: "YOUR-TENANT-ID-HERE"
+
+  # ==============================================================================
+  # GITHUB CONFIGURATION
+  # ==============================================================================
+  github:
+    # GitHub org/user where issues will be created
+    owner: YOUR-GITHUB-ORG-HERE
+
+    # Authentication: Personal Access Token
+    tokenRef:
+      name: github-token-secret   # Standard secret name
+      key: token
+
+  # ==============================================================================
+  # MIGRATION SETTINGS
+  # ==============================================================================
+  settings:
+    # How many work items per worker pod
+    batchSize: 10
+
+    # Retry attempts if migration fails
+    retryAttempts: 3
+
+  # ==============================================================================
+  # WORK ITEMS DISCOVERY
+  # ==============================================================================
+  discovery:
+    # Work Items Auto-Discovery
+    workItems:
+      # Enable work items migration
+      enabled: true
+
+      # Which work item types to migrate
+      # Common types: "User Story", "Bug", "Task", "Feature", "Epic"
+      types:
+        - "User Story"
+        - "Bug"
+        - "Task"
+
+      # Optional: Filter by area path
+      # areaPaths:
+      #   - "MyProject\\Team1"
+      #   - "MyProject\\Team2"
+
+      # Optional: Filter by iteration
+      # iterations:
+      #   - "Sprint 1"
+      #   - "Sprint 2"
+
+      # Optional: Filter by state
+      # states:
+      #   - "Active"
+      #   - "New"
+      # (Excludes: "Closed", "Resolved", etc.)
+
+      # Where to create GitHub Issues
+      targetRepository:
+        # Option 1: Create in a specific GitHub repository
+        owner: YOUR-GITHUB-ORG-HERE
+        name: YOUR-REPO-NAME-HERE
+
+        # Option 2: If migrating with repos, link work items to migrated repos
+        # (Uncomment if work items should go to their corresponding repos)
+        # useSourceRepositoryMapping: true
+
+      # Work Item Mapping: How ADO work items become GitHub issues
+      mapping:
+        # Preserve work item IDs in issue titles?
+        # true:  "[ADO-1234] Fix login bug"
+        # false: "Fix login bug"
+        includeAdoIdInTitle: true
+
+        # Preserve work item descriptions?
+        includeDescription: true
+
+        # Migrate comments?
+        includeComments: true
+
+        # Migrate attachments? (images, files, etc.)
+        includeAttachments: true
+
+        # Preserve links between work items?
+        # (Parent/Child, Related, Predecessor/Successor)
+        preserveLinks: true
+
+        # Label mapping: Convert ADO fields to GitHub labels
+        labels:
+          # ADO Work Item Type → GitHub Label
+          "User Story": "story"
+          "Bug": "bug"
+          "Task": "task"
+
+          # ADO Priority → GitHub Label
+          "1": "priority:critical"
+          "2": "priority:high"
+          "3": "priority:medium"
+          "4": "priority:low"
+
+# ==============================================================================
+# WORK ITEM MIGRATION BEHAVIOR
+# ==============================================================================
+#
+# How work items are migrated:
+#
+# 1. ADO Work Item Format:
+#    - ID: 1234
+#    - Type: User Story
+#    - Title: "Add login page"
+#    - Description: "Users need to login..."
+#    - State: Active
+#    - Priority: 2
+#    - Comments: 5 comments
+#    - Attachments: design.png, spec.pdf
+#
+# 2. GitHub Issue Format:
+#    - Title: "[ADO-1234] Add login page"
+#    - Body:
+#      "**Migrated from ADO Work Item #1234**
+#
+#       Users need to login...
+#
+#       ---
+#       Original State: Active
+#       Original Priority: 2"
+#    - Labels: ["story", "priority:high"]
+#    - Comments: All 5 comments migrated
+#    - Attachments: design.png and spec.pdf uploaded
+#
+# 3. Links Preserved:
+#    - If work item 1234 has child work item 1235
+#    - GitHub issue will have comment: "Related to #1235"
+#
+# ==============================================================================
+# WHAT HAPPENS NEXT?
+# ==============================================================================
+# 1. Operator connects to ADO and finds all work items matching your filters
+# 2. Operator creates worker pods (each handles ~10 work items)
+# 3. Workers create GitHub issues with all content
+# 4. Workers upload attachments and create cross-references
+# 5. All your work items are now GitHub issues!
+#
+# To apply this:
+#   kubectl apply -f 02-workitems-migration.yaml
+#
+# To check progress:
+#   kubectl get migrationjob my-workitems-migration -n ado-git-migration
+#
+# To see logs:
+#   kubectl logs -l app=migration-worker -n ado-git-migration
+# ==============================================================================
