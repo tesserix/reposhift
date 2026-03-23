@@ -690,23 +690,31 @@ func (r *MonoRepoMigrationReconciler) processMerging(ctx context.Context, migrat
 	// Collect branches and tags from the rewritten repo directory
 	r.collectBranchesAndTags(ctx, rewrittenDir, rewriteResult)
 
-	// Extract excludeBranches from the source repo spec
+	// Extract branch filtering from the source repo spec
 	var repoExcludeBranches []string
-	if sourceRepo != nil && len(sourceRepo.ExcludeBranches) > 0 {
-		repoExcludeBranches = sourceRepo.ExcludeBranches
-		logger.Info("Branch exclusion patterns configured for repo",
-			"repo", repoName, "patterns", repoExcludeBranches)
+	var repoIncludeBranches []string
+	if sourceRepo != nil {
+		if len(sourceRepo.ExcludeBranches) > 0 {
+			repoExcludeBranches = sourceRepo.ExcludeBranches
+			logger.Info("Branch exclusion patterns configured for repo",
+				"repo", repoName, "patterns", repoExcludeBranches)
+		}
+		if len(sourceRepo.IncludeBranches) > 0 {
+			repoIncludeBranches = sourceRepo.IncludeBranches
+			logger.Info("Branch inclusion patterns configured for repo",
+				"repo", repoName, "patterns", repoIncludeBranches)
+		}
 	}
 
 	if err := r.MigrationService.MergeRepoIntoMonoRepo(ctx, monoRepoDir, rewrittenDir,
-		repoName, defaultBranch, rewriteResult, logger, repoExcludeBranches); err != nil {
+		repoName, defaultBranch, rewriteResult, logger, repoExcludeBranches, repoIncludeBranches); err != nil {
 		return r.handleRepoError(ctx, migration, repoIdx, err)
 	}
 
-	// Calculate actual migrated branch count (accounting for exclusions)
+	// Calculate actual migrated branch count (accounting for filtering)
 	actualBranchesMigrated := len(rewriteResult.Branches)
-	if len(repoExcludeBranches) > 0 {
-		filtered := services.FilterBranches(rewriteResult.Branches, nil, repoExcludeBranches, defaultBranch, logger)
+	if len(repoExcludeBranches) > 0 || len(repoIncludeBranches) > 0 {
+		filtered := services.FilterBranches(rewriteResult.Branches, repoIncludeBranches, repoExcludeBranches, defaultBranch, logger)
 		actualBranchesMigrated = len(filtered)
 	}
 

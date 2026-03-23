@@ -277,7 +277,7 @@ type RepositoryInfo struct {
 // Then, any branch matching an exclude pattern is removed.
 // The defaultBranch is never excluded to prevent broken migrations.
 func FilterBranches(branches []string, includeBranches, excludeBranches []string, defaultBranch string, logger logr.Logger) []string {
-	if len(includeBranches) == 0 && len(excludeBranches) == 0 {
+	if len(branches) == 0 || (len(includeBranches) == 0 && len(excludeBranches) == 0) {
 		return branches
 	}
 
@@ -334,18 +334,30 @@ func matchesAnyPattern(branch string, patterns []string) bool {
 // matchBranchPattern checks if a branch name matches a single pattern.
 // Supports:
 //   - Exact match: "develop/7.0" matches "develop/7.0"
-//   - Wildcard suffix: "feature/*" matches "feature/anything" and "feature/nested/path"
+//   - Wildcard suffix: "feature/*" matches "feature/anything", "feature-anything", and "feature/nested/path"
 //   - Single asterisk: "*" matches everything
+//
+// Azure DevOps commonly uses hyphens as separators (feature-login, bugfix-123)
+// while GitHub uses slashes (feature/login). The wildcard pattern "feature/*"
+// matches both conventions: feature/x AND feature-x.
 func matchBranchPattern(branch, pattern string) bool {
 	// Exact match
 	if branch == pattern {
 		return true
 	}
 
-	// Wildcard matching
+	// Wildcard matching — "prefix/*" matches both prefix/ and prefix- separators
 	if strings.HasSuffix(pattern, "/*") {
 		prefix := strings.TrimSuffix(pattern, "/*")
-		return strings.HasPrefix(branch, prefix+"/")
+		// Match slash separator: feature/login-page
+		if strings.HasPrefix(branch, prefix+"/") {
+			return true
+		}
+		// Match hyphen separator: feature-login-page (common in ADO)
+		if strings.HasPrefix(branch, prefix+"-") {
+			return true
+		}
+		return false
 	}
 
 	// Full wildcard

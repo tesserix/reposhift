@@ -73,6 +73,15 @@ func TestMatchBranchPattern(t *testing.T) {
 		{"wildcard no match prefix only", "feature", "feature/*", false},
 		{"wildcard develop/*", "develop/8.0", "develop/*", true},
 
+		// ADO hyphen-separated branches (feature-xxx instead of feature/xxx)
+		{"hyphen feature-7.1-Prasanthi", "feature-7.1-Prasanthi", "feature/*", true},
+		{"hyphen feature-gitdemo-7.1", "feature-gitdemo-7.1", "feature/*", true},
+		{"hyphen bugfix-123", "bugfix-123", "bugfix/*", true},
+		{"hyphen hotfix-critical-fix", "hotfix-critical-fix", "hotfix/*", true},
+		{"hyphen release-1.0", "release-1.0", "release/*", true},
+		{"hyphen personal-john-experiment", "personal-john-experiment", "personal/*", true},
+		{"hyphen gitdemo-7.1-feature (not feature prefix)", "gitdemo-7.1-feature", "feature/*", false},
+
 		// Full wildcard
 		{"full wildcard matches anything", "main", "*", true},
 		{"full wildcard matches branch with slash", "feature/x", "*", true},
@@ -158,7 +167,7 @@ func TestFilterBranches(t *testing.T) {
 			branches:        []string{},
 			excludeBranches: []string{"feature/*"},
 			defaultBranch:   "main",
-			want:            nil,
+			want:            []string{},
 		},
 		{
 			name:            "exclude patterns that match nothing - all branches kept",
@@ -187,6 +196,63 @@ func TestFilterBranches(t *testing.T) {
 			excludeBranches: []string{"feature/*", "bugfix/*", "hotfix/*"},
 			defaultBranch:   "main",
 			want:            []string{"main", "develop", "release/2.0"},
+		},
+		{
+			name:            "ADO hyphen-style branches excluded by wildcard",
+			branches:        []string{"main", "develop", "feature-7.1-Prasanthi", "feature-7.2-gitdemo", "bugfix-123", "hotfix-critical", "release-1.0"},
+			excludeBranches: []string{"feature/*", "bugfix/*", "hotfix/*"},
+			defaultBranch:   "main",
+			want:            []string{"main", "develop", "release-1.0"},
+		},
+		{
+			name:            "mixed slash and hyphen branches excluded",
+			branches:        []string{"main", "feature/login", "feature-signup", "bugfix/456", "bugfix-789", "develop"},
+			excludeBranches: []string{"feature/*", "bugfix/*"},
+			defaultBranch:   "main",
+			want:            []string{"main", "develop"},
+		},
+		{
+			name:            "ADO real-world monorepo scenario",
+			branches:        []string{"main", "develop", "feature-7.1-Prasanthi", "feature-7.1-gitdemo", "feature-7.2-Prasanthi", "feature-gitdemo-7.1", "gitdemo-7.1-feature", "release/7.0", "release/7.1"},
+			excludeBranches: []string{"feature/*"},
+			defaultBranch:   "main",
+			want:            []string{"main", "develop", "gitdemo-7.1-feature", "release/7.0", "release/7.1"},
+		},
+		// ---- INCLUDE MODE TESTS ----
+		{
+			name:            "include only main and develop",
+			branches:        []string{"main", "develop", "feature/x", "bugfix/y", "hotfix/z"},
+			includeBranches: []string{"main", "develop"},
+			defaultBranch:   "main",
+			want:            []string{"main", "develop"},
+		},
+		{
+			name:            "include release/* keeps all release branches",
+			branches:        []string{"main", "develop", "release/7.0", "release/7.1", "feature/x"},
+			includeBranches: []string{"release/*", "main"},
+			defaultBranch:   "main",
+			want:            []string{"main", "release/7.0", "release/7.1"},
+		},
+		{
+			name:            "include mode - default branch always included even if not in list",
+			branches:        []string{"main", "develop", "feature/x"},
+			includeBranches: []string{"develop"},
+			defaultBranch:   "main",
+			want:            []string{"main", "develop"},
+		},
+		{
+			name:            "include with ADO hyphen branches",
+			branches:        []string{"main", "develop", "release-7.0", "release-7.1", "feature-login"},
+			includeBranches: []string{"main", "release/*"},
+			defaultBranch:   "main",
+			want:            []string{"main", "release-7.0", "release-7.1"},
+		},
+		{
+			name:            "include empty list returns all (no filtering)",
+			branches:        []string{"main", "develop", "feature/x"},
+			includeBranches: []string{},
+			defaultBranch:   "main",
+			want:            []string{"main", "develop", "feature/x"},
 		},
 	}
 
