@@ -15,6 +15,10 @@ spec:
         {{- include "reposhift-web.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "reposhift-web.serviceAccountName" . }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -53,6 +57,7 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
           securityContext:
             runAsNonRoot: true
+            runAsUser: 1001
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
           volumeMounts:

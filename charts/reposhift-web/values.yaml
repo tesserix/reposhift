@@ -8,6 +8,9 @@ image:
 
 replicaCount: 1
 
+imagePullSecrets:
+  - name: ghcr-secret
+
 port: 3005
 
 platformApiUrl: "http://reposhift-platform:8090"
