@@ -63,7 +63,7 @@ ingress:
 
 istio:
   enabled: false
-  gateway: istio-system/default-gateway
+  gateway: istio-ingress/tesseract-gateway
   host: repomigrator.tesserix.app
 
 env: {}

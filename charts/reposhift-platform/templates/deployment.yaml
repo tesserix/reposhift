@@ -13,6 +13,8 @@ spec:
     metadata:
       labels:
         {{- include "reposhift-platform.selectorLabels" . | nindent 8 }}
+      annotations:
+        traffic.sidecar.istio.io/excludeOutboundPorts: "5432"
     spec:
       serviceAccountName: {{ include "reposhift-platform.fullname" . }}
       {{- if .Values.imagePullSecrets }}
