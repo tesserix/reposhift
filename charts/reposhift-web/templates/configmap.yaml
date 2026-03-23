@@ -7,4 +7,5 @@ metadata:
 data:
   PLATFORM_API_URL: {{ .Values.platformApiUrl | quote }}
   PORT: {{ .Values.port | quote }}
+  HOSTNAME: "0.0.0.0"
   NODE_ENV: "production"
