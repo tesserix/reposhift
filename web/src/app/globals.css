@@ -1,28 +1,51 @@
 @import "tailwindcss";
 
+/*
+ * Color tokens from Tesserix Design System (dark mode)
+ * Source: @tesserix/tokens/colors — defaultColors.dark
+ * Palette: deep blue-violet with muted indigo primary
+ */
 @theme {
-  --color-background: oklch(0.145 0.016 285);
-  --color-foreground: oklch(0.985 0 0);
-  --color-card: oklch(0.18 0.012 285);
-  --color-card-foreground: oklch(0.96 0 0);
-  --color-card-border: oklch(0.25 0.01 285);
-  --color-primary: oklch(0.696 0.17 162);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-secondary: oklch(0.25 0.015 285);
-  --color-secondary-foreground: oklch(0.9 0 0);
-  --color-muted: oklch(0.3 0.01 285);
-  --color-muted-foreground: oklch(0.6 0.01 285);
-  --color-destructive: oklch(0.577 0.245 27);
-  --color-destructive-foreground: oklch(0.985 0 0);
-  --color-border: oklch(0.25 0.01 285);
-  --color-input: oklch(0.22 0.01 285);
-  --color-input-border: oklch(0.3 0.01 285);
-  --color-ring: oklch(0.696 0.17 162);
-  --color-sidebar: oklch(0.13 0.012 285);
-  --color-sidebar-border: oklch(0.22 0.01 285);
-  --color-sidebar-foreground: oklch(0.55 0.01 285);
-  --color-sidebar-active: oklch(0.696 0.17 162);
+  /* Surface colors */
+  --color-background: oklch(0.1847 0.0551 281.72);
+  --color-foreground: oklch(0.9844 0.0143 124.56);
+  --color-card: oklch(0.2251 0.04 282.06);
+  --color-card-foreground: oklch(0.9844 0.0143 124.56);
+  --color-card-border: oklch(0.3636 0.1394 279.26);
 
+  /* Primary — muted indigo blue */
+  --color-primary: oklch(0.6959 0.1435 280.77);
+  --color-primary-foreground: oklch(0.1847 0.0551 281.72);
+
+  /* Secondary — deep violet */
+  --color-secondary: oklch(0.2452 0.1079 277.36);
+  --color-secondary-foreground: oklch(0.9078 0.0245 257.45);
+
+  /* Muted — subdued for secondary text */
+  --color-muted: oklch(0.2452 0.1079 277.36);
+  --color-muted-foreground: oklch(0.71 0.0286 243.94);
+
+  /* Accent — deeper violet for hover/active states */
+  --color-accent: oklch(0.2931 0.1689 271.77);
+  --color-accent-foreground: oklch(0.9078 0.0245 257.45);
+
+  /* Destructive — warm red */
+  --color-destructive: oklch(0.6606 0.1423 24.41);
+  --color-destructive-foreground: oklch(0.1847 0.0551 281.72);
+
+  /* Borders & inputs */
+  --color-border: oklch(0.3636 0.1394 279.26);
+  --color-input: oklch(0.2251 0.04 282.06);
+  --color-input-border: oklch(0.3636 0.1394 279.26);
+  --color-ring: oklch(0.6959 0.1435 280.77);
+
+  /* Sidebar */
+  --color-sidebar: oklch(0.145 0 0);
+  --color-sidebar-border: oklch(0.3636 0.1394 279.26);
+  --color-sidebar-foreground: oklch(0.71 0.0286 243.94);
+  --color-sidebar-active: oklch(0.6959 0.1435 280.77);
+
+  /* Typography */
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
@@ -45,15 +68,15 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: oklch(0.3 0.01 285);
+  background: oklch(0.3 0.05 280);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.4 0.01 285);
+  background: oklch(0.4 0.05 280);
 }
 
-/* Focus ring utility */
+/* Focus ring */
 .focus-ring {
   outline: none;
 }
