@@ -290,7 +290,7 @@ export default function NewMigrationPage() {
                   </div>
                 )}
 
-                {branches.length === 0 && branchFilterMode !== "" && (
+                {branches.length === 0 && (
                   <p className="mt-2 text-xs text-zinc-600">
                     No branches added yet. Add branch names or patterns above.
                   </p>
