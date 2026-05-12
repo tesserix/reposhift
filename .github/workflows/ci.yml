@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   REGISTRY: ghcr.io
   GCP_PROJECT_ID: tesseracthub-480811
   GKE_CLUSTER: tesseract-prod-in-gke
